@@ -1,0 +1,566 @@
+import React from 'react';
+import { TOKENS, I } from './tokens.js';
+import Icon from './components/Icon.jsx';
+import Badge from './components/Badge.jsx';
+import Card from './components/Card.jsx';
+import StepNumber from './components/StepNumber.jsx';
+import Avatar from './components/Avatar.jsx';
+import Sidebar from './components/Sidebar.jsx';
+
+// ─── Tela: Composição da renda verificada ───────────────────────────────────
+
+export default function ScreenComposicao({ onVoltar }) {
+  return (
+    <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'auto' }}>
+        <CompHeader onVoltar={onVoltar} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '0 32px 40px' }}>
+          <ResumoComposicao />
+          <CompMensal />
+          <DetalhamentoMeses />
+          <CriterioCard />
+          <LeituraOperacional onVoltar={onVoltar} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ───────── Header (with breadcrumb + export actions) ─────────
+function CompHeader({ onVoltar }) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+      padding: '24px 32px 18px', gap: 24, borderBottom: `1px solid ${TOKENS.border}`,
+      background: TOKENS.surface,
+    }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <a href="#" onClick={(e) => { e.preventDefault(); onVoltar?.(); }} className="lz-link" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          color: TOKENS.textMuted, fontSize: 12.5, textDecoration: 'none', marginBottom: 8,
+        }}>
+          <Icon d={I.chevLeft} size={14} stroke={TOKENS.textMuted} />
+          Cliente contemplado · Larissa Teixeira
+        </a>
+        <h1 style={{
+          margin: 0, fontSize: 24, fontWeight: 600, letterSpacing: -0.6, color: TOKENS.text,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          Composição da renda verificada
+          <Badge tone="blue" size="sm" dot>Open Finance</Badge>
+        </h1>
+        <p style={{ margin: '6px 0 0', fontSize: 13.5, color: TOKENS.textMuted }}>
+          Classificação dos créditos identificados via Open Finance nos últimos 6 meses.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <button className="lz-btn-ghost" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: TOKENS.text,
+        }}>
+          <Icon d={I.download} size={15} stroke={TOKENS.success} strokeWidth={1.8} />
+          Exportar Excel
+        </button>
+        <button className="lz-btn-ghost" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: TOKENS.text,
+        }}>
+          <Icon d={I.doc} size={15} stroke={TOKENS.danger} strokeWidth={1.8} />
+          Exportar PDF
+        </button>
+        <div style={{ width: 1, height: 24, background: TOKENS.border, margin: '0 4px' }} />
+        <button className="lz-btn-ghost" title="Fechar" style={{
+          width: 36, height: 36, borderRadius: 10, display: 'inline-flex',
+          alignItems: 'center', justifyContent: 'center', padding: 0,
+        }}>
+          <Icon d={I.x} size={16} stroke={TOKENS.textMuted} strokeWidth={1.8} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ───────── 1. Contexto do cliente ─────────
+function ContextoCliente() {
+  const fields = [
+    { l: 'Grupo / Cota', v: '126 / 33', mono: true },
+    { l: 'Produto', v: 'Imóvel' },
+    { l: 'Valor total', v: 'R$ 190.000,00', mono: true },
+    { l: 'Parcela mensal', v: 'R$ 2.050,00', mono: true },
+    { l: 'Data da análise', v: '22/05/2025 09:41', mono: true },
+  ];
+  return (
+    <Card>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <StepNumber n={1} />
+        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Contexto do cliente</span>
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1.4fr repeat(5, 1fr) 1.1fr', gap: 20,
+        alignItems: 'center', padding: '14px 18px',
+        background: TOKENS.panel, borderRadius: 10, border: `1px solid ${TOKENS.border}`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Avatar name="Larissa Teixeira" size={42} tone="blue" />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14.5, fontWeight: 600, color: TOKENS.text }}>Larissa Teixeira</span>
+            </div>
+            <div className="num" style={{ fontSize: 11.5, color: TOKENS.textMuted, marginTop: 2 }}>
+              CPF 000.***.***-10
+            </div>
+          </div>
+        </div>
+        {fields.map((f, i) => (
+          <div key={i}>
+            <div style={{ fontSize: 10.5, color: TOKENS.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>
+              {f.l}
+            </div>
+            <div className={f.mono ? 'num' : ''} style={{ fontSize: 13, fontWeight: 500, color: TOKENS.text }}>
+              {f.v}
+            </div>
+          </div>
+        ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+          <Badge tone="success" size="sm" dot>Análise concluída</Badge>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 14, height: 14, borderRadius: 7, background: TOKENS.successSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon d={I.check} size={9} stroke={TOKENS.success} strokeWidth={3} />
+            </div>
+            <span style={{ fontSize: 12, color: TOKENS.text, fontWeight: 500 }}>Open Finance conectado</span>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ───────── 2. Resumo da composição (8 KPIs) ─────────
+function ResumoComposicao() {
+  const items = [
+    { l: 'Renda verificada média', v: 'R$ 6.450,00', s: 'Média mensal (6m)', icon: I.wallet, tone: 'blue', mono: true },
+    { l: 'Receita recorrente', v: '6 / 6', s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true },
+    { l: 'Confiança da análise', v: 'Alta', s: 'Padrão consistente', icon: I.shieldCheck, tone: 'success', isBadge: true, badgeTone: 'success' },
+    { l: 'Créditos atípicos', v: 'R$ 420,00', s: 'Removidos da média', icon: I.alert, tone: 'danger', mono: true },
+    { l: 'Entre contas', v: 'R$ 8.900,00', s: 'No período (6m)', icon: I.link, tone: 'purple', mono: true },
+    { l: 'Não recorrentes', v: 'R$ 2.150,00', s: 'No período (6m)', icon: I.history, tone: 'warning', mono: true },
+    { l: 'PIX recorrente validável', v: 'R$ 0,00', s: 'Sem padrão validável', icon: I.send, tone: 'blue', mono: true },
+    { l: 'Parcela / renda', v: '31,8%', s: 'R$ 2.050 sobre R$ 6.450', icon: I.chart, tone: 'warning', mono: true },
+  ];
+  const tonesMap = {
+    blue: { bg: TOKENS.primarySoft, fg: TOKENS.primary },
+    success: { bg: TOKENS.successSoft, fg: TOKENS.success },
+    warning: { bg: TOKENS.warningSoft, fg: TOKENS.warning },
+    danger: { bg: TOKENS.dangerSoft, fg: TOKENS.danger },
+    purple: { bg: TOKENS.purpleSoft, fg: TOKENS.purple },
+  };
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <StepNumber n={1} />
+        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Resumo da composição</span>
+        <span style={{ fontSize: 12, color: TOKENS.textMuted }}>(8 indicadores · 6 meses)</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {items.map((f, i) => {
+          const t = tonesMap[f.tone];
+          return (
+            <div key={i} className="lz-card" style={{ padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: 7, background: t.bg, color: t.fg,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Icon d={f.icon} size={14} stroke={t.fg} strokeWidth={1.8} />
+                </div>
+                <div style={{ fontSize: 11.5, color: TOKENS.textMuted, fontWeight: 500, lineHeight: 1.25 }}>
+                  {f.l}
+                </div>
+              </div>
+              {f.isBadge ? (
+                <div style={{ marginTop: 4 }}><Badge tone={f.badgeTone} size="md" dot>{f.v}</Badge></div>
+              ) : (
+                <div className={f.mono ? 'num' : ''} style={{ fontSize: 20, fontWeight: 600, color: TOKENS.text, letterSpacing: -0.4 }}>
+                  {f.v}
+                </div>
+              )}
+              <div style={{ fontSize: 10.5, color: TOKENS.textSubtle, marginTop: 4 }}>{f.s}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ───────── 3. Composição mensal da renda (tabela ampla) ─────────
+const MESES = [
+  { id: 'mar', label: 'Mar/25', long: 'Março/2025',
+    rec: 6200, pix: 0, ent: 1500, nrec: 250, atip: 0, total: 7950, val: 6200, conf: 'Alta' },
+  { id: 'abr', label: 'Abr/25', long: 'Abril/2025',
+    rec: 6280, pix: 0, ent: 1450, nrec: 380, atip: 300, total: 8410, val: 6280, conf: 'Alta' },
+  { id: 'mai', label: 'Mai/25', long: 'Maio/2025',
+    rec: 6600, pix: 0, ent: 1500, nrec: 420, atip: 0, total: 8520, val: 6600, conf: 'Alta' },
+  { id: 'jun', label: 'Jun/25', long: 'Junho/2025',
+    rec: 6500, pix: 0, ent: 1450, nrec: 320, atip: 120, total: 8390, val: 6500, conf: 'Alta' },
+  { id: 'jul', label: 'Jul/25', long: 'Julho/2025',
+    rec: 6470, pix: 0, ent: 1500, nrec: 510, atip: 0, total: 8480, val: 6470, conf: 'Alta' },
+  { id: 'ago', label: 'Ago/25', long: 'Agosto/2025',
+    rec: 6650, pix: 0, ent: 1500, nrec: 270, atip: 0, total: 8420, val: 6650, conf: 'Alta' },
+];
+
+function fmt(v) {
+  if (v === 0) return 'R$ 0,00';
+  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function CompMensal() {
+  const cols = [
+    { id: 'mes', label: 'Mês', w: 92, align: 'left' },
+    { id: 'rec', label: 'Receita recorrente', w: 150, align: 'right' },
+    { id: 'pix', label: 'PIX recorrente', w: 130, align: 'right' },
+    { id: 'ent', label: 'Entre contas', w: 130, align: 'right' },
+    { id: 'nrec', label: 'Não recorrentes', w: 140, align: 'right' },
+    { id: 'atip', label: 'Atípicos', w: 110, align: 'right' },
+    { id: 'total', label: 'Total de entradas', w: 150, align: 'right' },
+    { id: 'val', label: 'Renda validada', w: 150, align: 'right' },
+    { id: 'conf', label: 'Confiança', w: 100, align: 'center' },
+    { id: 'ver', label: '', w: 110, align: 'right' },
+  ];
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+        <StepNumber n={2} />
+        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Composição mensal da renda</span>
+      </div>
+      <p style={{ margin: '0 0 12px 32px', fontSize: 12.5, color: TOKENS.textMuted, maxWidth: 760 }}>
+        A tabela abaixo mostra a composição dos créditos identificados em cada mês e o valor efetivamente
+        considerado para a renda validada.
+      </p>
+      <Card padding={0}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ background: TOKENS.panel, borderBottom: `1px solid ${TOKENS.border}` }}>
+                {cols.map((c) => (
+                  <th key={c.id} style={{
+                    padding: '11px 14px', textAlign: c.align, fontWeight: 600,
+                    color: TOKENS.textMuted, fontSize: 11, textTransform: 'uppercase',
+                    letterSpacing: 0.4, whiteSpace: 'nowrap',
+                  }}>{c.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {MESES.map((m, i) => (
+                <tr key={m.id} className="lz-row-hover" style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
+                  <td style={{ padding: '12px 14px', fontWeight: 600, color: TOKENS.text }}>{m.label}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.success, fontWeight: 600 }}>{fmt(m.rec)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pix ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pix)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{fmt(m.ent)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.nrec ? TOKENS.warning : TOKENS.textSubtle }}>{fmt(m.nrec)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.atip ? TOKENS.danger : TOKENS.textSubtle }}>{fmt(m.atip)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.total)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.val)}</td>
+                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                    <Badge tone="success" size="sm" dot>{m.conf}</Badge>
+                  </td>
+                  <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                    <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      Ver detalhes <Icon d={I.chevRight} size={12} stroke={TOKENS.primary} />
+                    </a>
+                  </td>
+                </tr>
+              ))}
+              {/* Totals row */}
+              <tr style={{ background: TOKENS.panel }}>
+                <td style={{ padding: '12px 14px', fontWeight: 700, color: TOKENS.text, fontSize: 12 }}>Total 6m</td>
+                {['rec', 'pix', 'ent', 'nrec', 'atip', 'total', 'val'].map((k) => {
+                  const sum = MESES.reduce((a, m) => a + m[k], 0);
+                  return (
+                    <td key={k} className="num" style={{
+                      padding: '12px 14px', textAlign: 'right', fontWeight: 700,
+                      color: k === 'val' ? TOKENS.primaryFg : TOKENS.text,
+                      background: k === 'val' ? TOKENS.primarySoft : 'transparent',
+                    }}>{fmt(sum)}</td>
+                  );
+                })}
+                <td colSpan={2} style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted, fontSize: 11.5 }}>
+                  Média validada: <span className="num" style={{ color: TOKENS.text, fontWeight: 600 }}>R$ 6.450,00</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ───────── 4. Detalhamento dos créditos por mês ─────────
+const CLASSIF = {
+  rec: { label: 'Receita recorrente mensal', tone: 'success' },
+  pix: { label: 'PIX recorrente validável', tone: 'blue' },
+  ent: { label: 'Transferência entre contas', tone: 'neutral' },
+  nrec: { label: 'Entrada não recorrente', tone: 'warning' },
+  atip: { label: 'Crédito atípico / excluído', tone: 'danger' },
+};
+
+// Build per-month detail data
+function buildMesDetail(m) {
+  const dd = (d) => `${String(d).padStart(2,'0')}/${m.id === 'mar' ? '03' : m.id === 'abr' ? '04' : m.id === 'mai' ? '05' : m.id === 'jun' ? '06' : m.id === 'jul' ? '07' : '08'}/2025`;
+  const groups = {
+    rec: { title: 'A. Receita recorrente mensal', items: [
+      { d: dd(5), desc: 'Salário Empresa ABC', inst: 'Itaú', val: m.rec, cls: 'rec', cons: true, obs: 'Crédito com padrão mensal' },
+    ] },
+    pix: { title: 'B. PIX recorrente validável', items: m.pix > 0 ? [
+      { d: dd(10), desc: 'PIX recebido — origem fixa', inst: 'Nubank', val: m.pix, cls: 'pix', cons: true, obs: 'Padrão consistente' },
+    ] : [] },
+    ent: { title: 'C. Transferências entre contas', items: [
+      { d: dd(12), desc: 'Transferência mesma titularidade', inst: 'Nubank', val: Math.round(m.ent * 0.6), cls: 'ent', cons: false, obs: 'Movimentação interna' },
+      { d: dd(22), desc: 'TED entre contas próprias', inst: 'Itaú', val: m.ent - Math.round(m.ent * 0.6), cls: 'ent', cons: false, obs: 'Movimentação interna' },
+    ] },
+    nrec: { title: 'D. Entradas não recorrentes', items: m.nrec > 0 ? [
+      { d: dd(18), desc: 'PIX recebido', inst: 'Terceiro', val: m.nrec, cls: 'nrec', cons: false, obs: 'Sem padrão recorrente' },
+    ] : [] },
+    atip: { title: 'E. Créditos atípicos / excluídos', items: m.atip > 0 ? [
+      { d: dd(21), desc: 'Crédito extraordinário', inst: 'Banco Inter', val: m.atip, cls: 'atip', cons: false, obs: 'Valor fora do padrão mensal' },
+    ] : [] },
+  };
+  return groups;
+}
+
+function DetalhamentoMeses() {
+  const [open, setOpen] = React.useState({ mar: true, abr: false, mai: false, jun: false, jul: false, ago: false });
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <StepNumber n={3} />
+        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Detalhamento dos créditos por mês</span>
+        <span style={{ fontSize: 12, color: TOKENS.textMuted }}>(clique em um mês para expandir)</span>
+        <div style={{ flex: 1 }} />
+        <button className="lz-btn-ghost" onClick={() => {
+          const allOpen = Object.values(open).every(Boolean);
+          const next = {}; MESES.forEach((m) => next[m.id] = !allOpen);
+          setOpen(next);
+        }} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500 }}>
+          {Object.values(open).every(Boolean) ? 'Recolher todos' : 'Expandir todos'}
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {MESES.map((m) => (
+          <MesDetail key={m.id} mes={m} open={open[m.id]} onToggle={() => setOpen({ ...open, [m.id]: !open[m.id] })} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MesDetail({ mes, open, onToggle }) {
+  const groups = buildMesDetail(mes);
+  return (
+    <div className="lz-card" id={mes.id} style={{ overflow: 'hidden' }}>
+      <button onClick={onToggle} style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+        padding: '14px 18px', background: 'transparent', border: 0, textAlign: 'left',
+      }}>
+        <div style={{
+          width: 28, height: 28, borderRadius: 8, background: TOKENS.primarySoft,
+          color: TOKENS.primary, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s',
+        }}>
+          <Icon d={I.chevRight} size={14} stroke={TOKENS.primary} strokeWidth={2} />
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: TOKENS.text }}>{mes.long}</span>
+          <span style={{ fontSize: 12, color: TOKENS.textMuted }}>
+            Renda validada: <span className="num" style={{ color: TOKENS.text, fontWeight: 600 }}>{fmt(mes.val)}</span>
+            <span style={{ margin: '0 8px', color: TOKENS.borderStrong }}>·</span>
+            Total créditos: <span className="num" style={{ color: TOKENS.text, fontWeight: 500 }}>{fmt(mes.total)}</span>
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Badge tone="success" size="sm" dot>Confiança {mes.conf}</Badge>
+        </div>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 14, borderTop: `1px solid ${TOKENS.border}` }}>
+          {Object.entries(groups).map(([key, g]) => (
+            <DetailGroup key={key} title={g.title} items={g.items} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailGroup({ title, items }) {
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, color: TOKENS.text, marginBottom: 8, letterSpacing: -0.1 }}>
+        {title} <span style={{ color: TOKENS.textSubtle, fontWeight: 500 }}>· {items.length} {items.length === 1 ? 'lançamento' : 'lançamentos'}</span>
+      </div>
+      {items.length === 0 ? (
+        <div style={{
+          padding: '14px 16px', border: `1px dashed ${TOKENS.border}`, borderRadius: 10,
+          fontSize: 12, color: TOKENS.textSubtle, fontStyle: 'italic',
+        }}>
+          Nenhum lançamento identificado neste mês.
+        </div>
+      ) : (
+        <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ background: TOKENS.panel, borderBottom: `1px solid ${TOKENS.border}` }}>
+                {['Data', 'Descrição', 'Instituição / origem', 'Valor', 'Classificação', 'Considerado', 'Observação'].map((h, i) => (
+                  <th key={i} style={{
+                    padding: '9px 14px', textAlign: i === 3 ? 'right' : i === 5 ? 'center' : 'left',
+                    fontWeight: 600, color: TOKENS.textMuted, fontSize: 10.5,
+                    textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap',
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it, i) => {
+                const c = CLASSIF[it.cls];
+                return (
+                  <tr key={i} className="lz-row-hover" style={{ borderBottom: i < items.length - 1 ? `1px solid ${TOKENS.border}` : 'none' }}>
+                    <td className="num" style={{ padding: '10px 14px', color: TOKENS.text }}>{it.d}</td>
+                    <td style={{ padding: '10px 14px', color: TOKENS.text, fontWeight: 500 }}>{it.desc}</td>
+                    <td style={{ padding: '10px 14px', color: TOKENS.textMuted }}>{it.inst}</td>
+                    <td className="num" style={{ padding: '10px 14px', textAlign: 'right', color: TOKENS.text, fontWeight: 600 }}>{fmt(it.val)}</td>
+                    <td style={{ padding: '10px 14px' }}><Badge tone={c.tone} size="sm" dot>{c.label}</Badge></td>
+                    <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                      {it.cons ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: TOKENS.success, fontSize: 12, fontWeight: 600 }}>
+                          <Icon d={I.check} size={12} stroke={TOKENS.success} strokeWidth={2.5} /> Sim
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: TOKENS.textSubtle, fontSize: 12 }}>
+                          <Icon d={I.x} size={11} stroke={TOKENS.textSubtle} strokeWidth={2} /> Não
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px 14px', color: TOKENS.textMuted, fontSize: 12 }}>{it.obs}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ───────── 5. Critério utilizado na composição da renda ─────────
+function CriterioCard() {
+  const bullets = [
+    { l: 'Receita recorrente mensal', v: 'entra na renda validada', tone: 'success' },
+    { l: 'PIX recorrente validável', v: 'pode entrar quando houver consistência', tone: 'blue' },
+    { l: 'Transferência entre contas', v: 'não entra', tone: 'neutral' },
+    { l: 'Entrada não recorrente', v: 'normalmente não entra', tone: 'warning' },
+    { l: 'Crédito atípico / excluído', v: 'não entra', tone: 'danger' },
+  ];
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <StepNumber n={4} />
+        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Critério utilizado na composição da renda</span>
+      </div>
+      <Card>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 28 }}>
+          <div style={{ display: 'flex', gap: 14 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 8, background: TOKENS.primarySoft,
+              color: TOKENS.primary, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Icon d={I.info} size={16} stroke={TOKENS.primary} strokeWidth={1.8} />
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.65, textWrap: 'pretty' }}>
+              A renda verificada é composta prioritariamente por créditos com padrão recorrente mensal
+              identificados no histórico bancário do cliente. Transferências entre contas da mesma
+              titularidade são separadas por não representarem nova geração de renda. PIX e transferências
+              de terceiros são avaliados conforme recorrência, origem e estabilidade. Entradas não
+              recorrentes, reembolsos, estornos e créditos atípicos permanecem visíveis para auditoria,
+              mas não compõem a renda recorrente principal.
+            </p>
+          </div>
+          <div style={{
+            background: TOKENS.panel, border: `1px solid ${TOKENS.border}`, borderRadius: 10,
+            padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <div style={{ fontSize: 11, color: TOKENS.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 }}>
+              Regras aplicadas
+            </div>
+            {bullets.map((b, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 12.5 }}>
+                <Badge tone={b.tone} size="sm" dot>{b.l}</Badge>
+                <span style={{ color: TOKENS.textMuted, flex: 1, paddingTop: 2 }}>{b.v}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ───────── 6. Leitura operacional ─────────
+function LeituraOperacional({ onVoltar }) {
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <StepNumber n={5} />
+        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Leitura operacional</span>
+      </div>
+      <div className="lz-card" style={{
+        padding: 18,
+        background: `linear-gradient(180deg, ${TOKENS.primarySoft}55 0%, white 70%)`,
+        border: `1px solid ${TOKENS.primarySoft}`,
+      }}>
+        <div style={{ display: 'flex', gap: 14 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, background: TOKENS.success,
+            color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <Icon d={I.shieldCheck} size={18} stroke="white" strokeWidth={2} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13.5, fontWeight: 600, color: TOKENS.text, marginBottom: 6 }}>
+              Composição consistente · pronta para comprovação automatizada
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.6, textWrap: 'pretty' }}>
+              A renda validada deste cliente foi calculada a partir dos créditos recorrentes identificados
+              nos últimos 6 meses, com exclusão de transferências internas e entradas atípicas. O histórico
+              apresenta consistência suficiente para suportar a comprovação automatizada de renda.
+            </p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+              <button
+                className="lz-btn-primary"
+                onClick={onVoltar}
+                style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
+              >
+                Voltar para análise do cliente
+              </button>
+              <button className="lz-btn-ghost" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
+              }}>
+                <Icon d={I.download} size={14} stroke={TOKENS.text} />
+                Baixar relatório completo
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
