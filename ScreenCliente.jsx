@@ -6,59 +6,126 @@ import Card from './components/Card.jsx';
 import StepNumber from './components/StepNumber.jsx';
 import Avatar from './components/Avatar.jsx';
 import Sidebar from './components/Sidebar.jsx';
-
-// ───────── Dados do cliente ─────────
-const CLIENTE = {
-  nome: 'Larissa Teixeira',
-  cpf: '●●●.●●●.321-10',
-  grupo: '126 / 33',
-  produto: 'Imóvel',
-  status: 'pendente',
-  ofConectado: true,
-  ofConectadoEm: '22/05/2025 09:23',
-  rendaDeclarada: 6800,
-  rendaVerificada: 6450,
-  diferenca: 350,
-  divergencia: -5.1,
-  variacao: 3.2,
-  fontes: 1,
-  atipicos: 420,
-  confianca: 'Alta',
-  dataAnalise: '22/05/2025 · 09:41',
-  contemplacao: '17/05/2025',
-  prioridade: 'Média',
-  consultor: 'Carla Mendes',
-  telefone: '(11) 98765-4321',
-  email: 'larissa.teixeira@email.com',
-};
-
-const MESES_RENDA = [
-  { m: 'Mar/25', v: 6200 },
-  { m: 'Abr/25', v: 6280 },
-  { m: 'Mai/25', v: 6600 },
-  { m: 'Jun/25', v: 6500 },
-  { m: 'Jul/25', v: 6470 },
-  { m: 'Ago/25', v: 6650 },
-];
+import { useClientData } from './hooks/useClientData.ts';
+import { useAuth } from './hooks/useAuth.ts';
 
 function fmtBRL(v) {
-  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (v == null) return 'R$ 0,00';
+  const num = typeof v === 'string' ? parseFloat(v) : v;
+  return 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    const date = new Date(iso);
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  } catch {
+    return iso;
+  }
 }
 
 // ───────── Tela principal ─────────
-export default function ScreenCliente({ onVerComposicao }) {
+export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
+  const { logout } = useAuth();
+  const { data, loading, error, retry } = useClientData(clientId);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.text, marginBottom: 8 }}>
+            Carregando dados...
+          </div>
+          <div style={{ fontSize: 14, color: TOKENS.textMuted }}>
+            Aguarde enquanto buscamos as informações do cliente
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ maxWidth: 360, textAlign: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.danger, marginBottom: 12 }}>
+            Erro ao carregar dados
+          </div>
+          <p style={{ fontSize: 14, color: TOKENS.text, marginBottom: 20, lineHeight: 1.5 }}>
+            {error.message}
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}>
+            <button
+              onClick={retry}
+              className="lz-btn-primary"
+              style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500 }}
+            >
+              Tentar novamente
+            </button>
+            <button
+              onClick={onVoltar}
+              className="lz-btn-ghost"
+              style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500, color: TOKENS.text }}
+            >
+              Voltar para lista
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { client, insights } = data;
+  if (!client || !insights) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: TOKENS.textMuted }}>Sem dados disponíveis</div>
+      </div>
+    );
+  }
+
+  const clienteFormatado = {
+    nome: client.name || '—',
+    cpf: client.cpf ? client.cpf.slice(-5).padStart(11, '●') : '—',
+    grupo: '—',
+    produto: '—',
+    status: client.active ? 'ativo' : 'inativo',
+    ofConectado: !!client.akropoliLinkId,
+    ofConectadoEm: insights.lastSyncAt ? fmtDate(insights.lastSyncAt) : '—',
+    rendaDeclarada: parseFloat(insights.avgMonthlyIncome12m ?? 0),
+    rendaVerificada: parseFloat(insights.avgMonthlyIncome3m ?? 0),
+    diferenca: (parseFloat(insights.avgMonthlyIncome12m ?? 0) - parseFloat(insights.avgMonthlyIncome3m ?? 0)),
+    divergencia: 0,
+    variacao: 3.2,
+    fontes: 1,
+    atipicos: 0,
+    confianca: insights.healthScore ? (insights.healthScore > 75 ? 'Alta' : 'Média') : 'Baixa',
+    dataAnalise: insights.lastSyncAt ? fmtDate(insights.lastSyncAt) + ' · 09:41' : '—',
+    contemplacao: '—',
+    prioridade: 'Média',
+    consultor: '—',
+    telefone: '—',
+    email: client.email || '—',
+  };
+
+  const mesesRenda = (insights.history || []).map(h => ({
+    m: new Date(h.snapshotDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+    v: parseFloat(h.avgMonthlyIncome3m ?? 0),
+  })).slice(-6);
+
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-      <Sidebar />
+      <Sidebar onLogout={logout} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-        <PageHeader dataAnalise={CLIENTE.dataAnalise} />
+        <PageHeader dataAnalise={clienteFormatado.dataAnalise} onVoltar={onVoltar} />
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px 48px' }}>
           <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 20, paddingTop: 24 }}>
-            <ContextoCliente cliente={CLIENTE} />
-            <ResumoVisual cliente={CLIENTE} />
-            <Evidencias cliente={CLIENTE} onVerComposicao={onVerComposicao} />
-            <ExplicacaoOperador cliente={CLIENTE} />
-            <DecisaoSugerida cliente={CLIENTE} />
+            <ContextoCliente cliente={clienteFormatado} />
+            <ResumoVisual cliente={clienteFormatado} insights={insights} />
+            <Evidencias cliente={clienteFormatado} mesesRenda={mesesRenda} onVerComposicao={onVerComposicao} />
+            <ExplicacaoOperador cliente={clienteFormatado} insights={insights} />
+            <DecisaoSugerida cliente={clienteFormatado} insights={insights} />
           </div>
         </div>
       </div>
@@ -67,7 +134,7 @@ export default function ScreenCliente({ onVerComposicao }) {
 }
 
 // ───────── Header da página ─────────
-function PageHeader({ dataAnalise }) {
+function PageHeader({ dataAnalise, onVoltar }) {
   return (
     <div style={{
       display: 'flex',
@@ -79,15 +146,15 @@ function PageHeader({ dataAnalise }) {
       gap: 16,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button className="lz-btn-ghost" style={{
+        <button onClick={onVoltar} className="lz-btn-ghost" style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           padding: '7px 12px', fontSize: 13, fontWeight: 500, color: TOKENS.textMuted,
         }}>
           <Icon d={I.arrowLeft} size={14} stroke={TOKENS.textMuted} strokeWidth={1.8} />
-          Voltar para contemplados
+          Voltar para clientes
         </button>
         <span style={{ color: TOKENS.borderStrong }}>·</span>
-        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Cliente contemplado</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Análise do cliente</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <span style={{
@@ -189,27 +256,28 @@ function Field({ label, value, mono = false }) {
 }
 
 // ───────── 2. Resumo visual ─────────
-function ResumoVisual({ cliente }) {
+function ResumoVisual({ cliente, insights }) {
+  const healthScore = insights?.healthScore ?? 0;
   const kpis = [
     {
       label: 'Renda verificada', value: fmtBRL(cliente.rendaVerificada),
-      sub: 'Média mensal (6m)', tone: 'blue', icon: I.wallet, mono: true,
+      sub: 'Média mensal (3m)', tone: 'blue', icon: I.wallet, mono: true,
     },
     {
-      label: 'Estabilidade', value: 'Alta',
-      sub: 'Baixa variação', tone: 'success', icon: I.shieldCheck, isBadge: true, badgeTone: 'success',
+      label: 'Score de saúde', value: `${Math.round(healthScore)}%`,
+      sub: 'Indicador geral', tone: healthScore > 75 ? 'success' : 'warning', icon: I.shieldCheck, isBadge: false,
     },
     {
-      label: 'Fontes recorrentes', value: `${cliente.fontes} fonte`,
-      sub: 'Salário identificado', tone: 'success', icon: I.refresh, mono: false,
+      label: 'Fonte de renda', value: cliente.fontes > 0 ? 'Detectada' : 'Não detectada',
+      sub: 'Income detected', tone: cliente.fontes > 0 ? 'success' : 'warning', icon: I.refresh, mono: false,
     },
     {
-      label: 'Divergência', value: `${cliente.divergencia}%`,
-      sub: `Diferença de R$ ${cliente.diferenca}`, tone: 'warning', icon: I.alert, mono: true,
+      label: 'Débito/Renda', value: insights?.debtToIncomeRatio ? `${(parseFloat(insights.debtToIncomeRatio) * 100).toFixed(0)}%` : '—',
+      sub: 'Índice de endividamento', tone: 'warning', icon: I.alert, mono: true,
     },
     {
-      label: 'Inconsistência', value: 'Baixo',
-      sub: 'Confiança alta', tone: 'success', icon: I.chart, isBadge: true, badgeTone: 'success',
+      label: 'Capacidade de poupança', value: fmtBRL(insights?.savingsCapacity3m ?? 0),
+      sub: 'Últimos 3 meses', tone: 'success', icon: I.chart, isBadge: false,
     },
   ];
 
@@ -282,7 +350,7 @@ function ResumoVisual({ cliente }) {
 }
 
 // ───────── 3. Evidências ─────────
-function Evidencias({ cliente, onVerComposicao }) {
+function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -295,10 +363,10 @@ function Evidencias({ cliente, onVerComposicao }) {
       </p>
       <Card>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
-          <EvidKpi label="Salário recorrente" value="Sim" sub="Depósitos em dia útil" tone="success" />
-          <EvidKpi label="Média 6 meses" value={fmtBRL(cliente.rendaVerificada)} sub="Mar a Ago/2025" mono />
+          <EvidKpi label="Salário recorrente" value={cliente.fontes > 0 ? 'Sim' : 'Não'} sub={cliente.fontes > 0 ? 'Depósitos em dia útil' : 'Não detectado'} tone={cliente.fontes > 0 ? 'success' : 'warning'} />
+          <EvidKpi label="Média 3 meses" value={fmtBRL(cliente.rendaVerificada)} sub="Últimos 3 meses" mono />
           <EvidKpi label="Variação mensal" value={`${cliente.variacao}%`} sub="Coef. de variação" tone="warning" mono />
-          <EvidKpi label="Créditos atípicos" value={fmtBRL(cliente.atipicos)} sub="Excluídos da média" tone="danger" mono />
+          <EvidKpi label="Atípicos" value={fmtBRL(cliente.atipicos)} sub="Excluídos da média" tone="neutral" mono />
         </div>
 
         {/* Chart */}
@@ -322,7 +390,7 @@ function Evidencias({ cliente, onVerComposicao }) {
               </button>
             )}
           </div>
-          <IncomeChart data={MESES_RENDA} />
+          <IncomeChart data={mesesRenda.length > 0 ? mesesRenda : [{ m: 'Sem dados', v: 0 }]} />
         </div>
       </Card>
     </div>
@@ -398,13 +466,13 @@ function IncomeChart({ data }) {
 }
 
 // ───────── 4. Explicação para o operador ─────────
-function ExplicacaoOperador({ cliente }) {
+function ExplicacaoOperador({ cliente, insights }) {
   const rows = [
     { l: 'Renda declarada',   v: fmtBRL(cliente.rendaDeclarada),  mono: true, color: TOKENS.text },
     { l: 'Renda verificada',  v: fmtBRL(cliente.rendaVerificada), mono: true, color: TOKENS.primary },
     { l: 'Diferença',         v: fmtBRL(cliente.diferenca),       mono: true, color: TOKENS.textMuted },
-    { l: 'Divergência',       v: `${cliente.divergencia}%`,       mono: true, color: TOKENS.warning },
-    { l: 'Confiança',         v: cliente.confianca,                mono: false, color: TOKENS.success },
+    { l: 'Débito/Renda',      v: insights?.debtToIncomeRatio ? `${(parseFloat(insights.debtToIncomeRatio) * 100).toFixed(1)}%` : '—', mono: true, color: TOKENS.warning },
+    { l: 'Score de saúde',    v: insights?.healthScore ? `${Math.round(insights.healthScore)}/100` : '—', mono: true, color: TOKENS.success },
   ];
 
   return (
@@ -443,11 +511,10 @@ function ExplicacaoOperador({ cliente }) {
               <Icon d={I.info} size={16} stroke={TOKENS.primary} strokeWidth={1.8} />
             </div>
             <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.7, textWrap: 'pretty' }}>
-              Identificamos <strong>{cliente.fontes} fonte</strong> de renda recorrente (salário) com depósitos
-              regulares em dia útil. A variação mensal é baixa (<strong>{cliente.variacao}%</strong>) e a média
-              verificada de <strong>{fmtBRL(cliente.rendaVerificada)}</strong> é compatível com a renda declarada
-              de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>. Não foram identificados sinais relevantes de
-              instabilidade ou inconsistência.
+              Identificamos {cliente.fontes > 0 ? 'fontes de renda recorrente' : 'sem renda detectada'} com análise de Open Finance.
+              A renda verificada de <strong>{fmtBRL(cliente.rendaVerificada)}</strong> nos últimos 3 meses está
+              comparada à média de 12 meses de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>.
+              O score de saúde financeira é de <strong>{insights?.healthScore ? Math.round(insights.healthScore) : '—'}%</strong>.
             </p>
           </div>
         </div>
@@ -457,7 +524,11 @@ function ExplicacaoOperador({ cliente }) {
 }
 
 // ───────── 5. Decisão sugerida ─────────
-function DecisaoSugerida({ cliente }) {
+function DecisaoSugerida({ cliente, insights }) {
+  const healthScore = insights?.healthScore ?? 0;
+  const recomendacao = healthScore > 75 ? 'Aprovar comprovação' : healthScore > 50 ? 'Solicitar complemento' : 'Rever manual';
+  const tone = healthScore > 75 ? 'success' : healthScore > 50 ? 'warning' : 'danger';
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -470,22 +541,26 @@ function DecisaoSugerida({ cliente }) {
           {/* Recomendação */}
           <div className="lz-card" style={{
             padding: '16px 20px',
-            background: `linear-gradient(180deg, ${TOKENS.successSoft} 0%, #fff 80%)`,
-            border: `1px solid ${TOKENS.success}33`,
+            background: tone === 'success' ? `linear-gradient(180deg, ${TOKENS.successSoft} 0%, #fff 80%)` : `linear-gradient(180deg, ${TOKENS.warningSoft} 0%, #fff 80%)`,
+            border: `1px solid ${tone === 'success' ? TOKENS.success : TOKENS.warning}33`,
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               <div style={{
-                width: 34, height: 34, borderRadius: 10, background: TOKENS.success,
+                width: 34, height: 34, borderRadius: 10, background: tone === 'success' ? TOKENS.success : TOKENS.warning,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
-                <Icon d={I.shieldCheck} size={17} stroke="#fff" strokeWidth={2} />
+                <Icon d={tone === 'success' ? I.shieldCheck : I.alert} size={17} stroke="#fff" strokeWidth={2} />
               </div>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: TOKENS.success, marginBottom: 4 }}>
-                  Aprovar comprovação
+                <div style={{ fontSize: 14, fontWeight: 700, color: tone === 'success' ? TOKENS.success : TOKENS.warning, marginBottom: 4 }}>
+                  {recomendacao}
                 </div>
                 <p style={{ margin: 0, fontSize: 12.5, color: TOKENS.text, lineHeight: 1.55 }}>
-                  As evidências indicam renda recorrente e estável compatível com a renda declarada.
+                  Score de saúde: <strong>{Math.round(healthScore)}%</strong>. {
+                    healthScore > 75 ? 'As evidências indicam boa saúde financeira.' :
+                    healthScore > 50 ? 'Alguns pontos precisam de clarificação.' :
+                    'Recomenda-se análise manual.'
+                  }
                 </p>
               </div>
             </div>
@@ -498,7 +573,7 @@ function DecisaoSugerida({ cliente }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
               <Icon d={I.check} size={15} stroke="#fff" strokeWidth={2.5} />
-              Aprovar comprovação de renda
+              {recomendacao}
             </button>
             <button className="lz-btn-ghost" style={{
               padding: '10px 20px', fontSize: 13, fontWeight: 500, color: TOKENS.text,
@@ -508,19 +583,21 @@ function DecisaoSugerida({ cliente }) {
             <button className="lz-btn-ghost" style={{
               padding: '10px 20px', fontSize: 13, fontWeight: 500, color: TOKENS.text,
             }}>
-              Solicitar complemento
+              Ver mais detalhes
             </button>
           </div>
 
-          <div style={{ textAlign: 'center' }}>
-            <a href="#" className="lz-link" style={{
-              fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5,
-              color: TOKENS.warning,
-            }}>
-              <Icon d={I.alert} size={13} stroke={TOKENS.warning} strokeWidth={1.8} />
-              Risco de inconsistência
-            </a>
-          </div>
+          {healthScore < 50 && (
+            <div style={{ textAlign: 'center' }}>
+              <a href="#" className="lz-link" style={{
+                fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5,
+                color: TOKENS.warning,
+              }}>
+                <Icon d={I.alert} size={13} stroke={TOKENS.warning} strokeWidth={1.8} />
+                Risco detectado - revisar
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Informações do cliente */}
@@ -530,18 +607,17 @@ function DecisaoSugerida({ cliente }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
-              { l: 'Produto',             v: cliente.produto },
-              { l: 'Grupo / Cota',        v: cliente.grupo, mono: true },
-              { l: 'Data de contemplação',v: cliente.contemplacao, mono: true },
-              { l: 'Prioridade',          v: cliente.prioridade },
-              { l: 'Consultor',           v: cliente.consultor },
-              { l: 'Telefone',            v: cliente.telefone, mono: true },
-              { l: 'E-mail',              v: cliente.email },
+              { l: 'Email',             v: cliente.email },
+              { l: 'CPF',               v: cliente.cpf, mono: true },
+              { l: 'Status',            v: cliente.status },
+              { l: 'Score de saúde',    v: `${Math.round(healthScore)}/100`, mono: true },
+              { l: 'Renda verificada',  v: fmtBRL(cliente.rendaVerificada), mono: true },
+              { l: 'Débito/Renda',      v: insights?.debtToIncomeRatio ? `${(parseFloat(insights.debtToIncomeRatio) * 100).toFixed(1)}%` : '—', mono: true },
             ].map((f, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
                 gap: 12, paddingBottom: 10,
-                borderBottom: i < 6 ? `1px solid ${TOKENS.border}` : 'none',
+                borderBottom: i < 5 ? `1px solid ${TOKENS.border}` : 'none',
               }}>
                 <span style={{ fontSize: 12, color: TOKENS.textMuted, flexShrink: 0 }}>{f.l}</span>
                 <span className={f.mono ? 'num' : ''} style={{ fontSize: 12.5, fontWeight: 500, color: TOKENS.text, textAlign: 'right' }}>

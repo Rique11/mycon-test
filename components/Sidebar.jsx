@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { label: 'Configurações',    icon: I.settings },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onLogout }) {
   return (
     <div style={{
       width: 220,
@@ -32,23 +32,11 @@ export default function Sidebar() {
           />
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: TOKENS.text, letterSpacing: -0.3 }}>
-              Lizard
+              mycon
             </div>
-            <div style={{ fontSize: 10.5, color: TOKENS.textMuted }}>Consórcio</div>
+            <div style={{ fontSize: 10.5, color: TOKENS.textMuted }}>Analytics</div>
           </div>
         </div>
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          background: TOKENS.warningSoft,
-          color: TOKENS.warning,
-          fontSize: 10,
-          fontWeight: 600,
-          padding: '2px 8px',
-          borderRadius: 100,
-        }}>
-          Ambiente PoC
-        </span>
       </div>
 
       {/* Nav */}
@@ -71,20 +59,7 @@ export default function Sidebar() {
         padding: '12px 16px',
         borderTop: `1px solid ${TOKENS.border}`,
       }}>
-        <div style={{
-          background: TOKENS.warningSoft,
-          border: `1px solid ${TOKENS.warning}22`,
-          borderRadius: 8,
-          padding: '6px 10px',
-          fontSize: 11,
-          color: TOKENS.warning,
-          fontWeight: 600,
-          marginBottom: 12,
-          textAlign: 'center',
-        }}>
-          Ambiente de testes
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
           <div style={{
             width: 32, height: 32, borderRadius: '50%',
             background: TOKENS.primarySoft,
@@ -94,7 +69,7 @@ export default function Sidebar() {
           }}>
             OU
           </div>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: 12.5, fontWeight: 600, color: TOKENS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               Operador Mycon
             </div>
@@ -103,6 +78,22 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
+        {onLogout && (
+          <button
+            onClick={onLogout}
+            className="lz-btn-ghost"
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              fontSize: 12,
+              fontWeight: 500,
+              color: TOKENS.textMuted,
+              textAlign: 'left',
+            }}
+          >
+            Sair
+          </button>
+        )}
       </div>
     </div>
   );
