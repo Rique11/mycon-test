@@ -1,6 +1,6 @@
 /**
- * api.ts — cliente HTTP centralizado para integração com backend Spring Boot.
- * Gerencia autenticação, tokens e requisições tipadas aos endpoints da API.
+ * api.js — cliente HTTP centralizado para integração com backend Spring Boot.
+ * Gerencia autenticação, tokens e requisições aos endpoints da API.
  */
 
 const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8081').replace(/\/+$/, '');
@@ -11,26 +11,21 @@ const AUTH_EVENT = 'auth:tokens-updated';
 
 // ── Token storage ─────────────────────────────────────────────────────────────
 
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-}
-
-export function getAccessToken(): string | null {
+export function getAccessToken() {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-export function getRefreshToken(): string | null {
+export function getRefreshToken() {
   return localStorage.getItem(REFRESH_TOKEN_KEY);
 }
 
-export function setTokens(tokens: TokenPair): void {
+export function setTokens(tokens) {
   localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
   localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
   window.dispatchEvent(new CustomEvent(AUTH_EVENT));
 }
 
-export function clearTokens(): void {
+export function clearTokens() {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.dispatchEvent(new CustomEvent(AUTH_EVENT));
@@ -40,9 +35,9 @@ export const AUTH_TOKENS_EVENT = AUTH_EVENT;
 
 // ── Refresh orchestration ─────────────────────────────────────────────────────
 
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise = null;
 
-async function doRefresh(): Promise<string | null> {
+async function doRefresh() {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
 
@@ -56,7 +51,7 @@ async function doRefresh(): Promise<string | null> {
       clearTokens();
       return null;
     }
-    const data = (await response.json()) as AuthResponse;
+    const data = await response.json();
     setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
     return data.accessToken;
   } catch {
@@ -65,7 +60,7 @@ async function doRefresh(): Promise<string | null> {
   }
 }
 
-function refreshAccessToken(): Promise<string | null> {
+function refreshAccessToken() {
   if (!refreshPromise) {
     refreshPromise = doRefresh().finally(() => {
       refreshPromise = null;
@@ -77,9 +72,7 @@ function refreshAccessToken(): Promise<string | null> {
 // ── HTTP core ─────────────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
-  readonly status: number;
-  readonly body: unknown;
-  constructor(status: number, message: string, body: unknown) {
+  constructor(status, message, body) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -87,13 +80,7 @@ export class ApiError extends Error {
   }
 }
 
-interface RequestOptions extends Omit<RequestInit, 'body'> {
-  body?: unknown;
-  authenticated?: boolean;
-  query?: Record<string, string | number | boolean | null | undefined>;
-}
-
-function buildUrl(path: string, query?: RequestOptions['query']): string {
+function buildUrl(path, query) {
   const base = `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
   if (!query) return base;
   const params = new URLSearchParams();
@@ -104,7 +91,7 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   return qs ? `${base}?${qs}` : base;
 }
 
-async function parseBody(response: Response): Promise<unknown> {
+async function parseBody(response) {
   if (response.status === 204) return undefined;
   const text = await response.text();
   if (!text || text.trim() === '') return undefined;
@@ -115,23 +102,22 @@ async function parseBody(response: Response): Promise<unknown> {
   }
 }
 
-async function extractMessage(body: unknown, fallback: string): Promise<string> {
+async function extractMessage(body, fallback) {
   if (body && typeof body === 'object') {
-    const asRecord = body as Record<string, unknown>;
-    if (typeof asRecord.message === 'string') return asRecord.message;
-    if (typeof asRecord.error === 'string') return asRecord.error;
+    if (typeof body.message === 'string') return body.message;
+    if (typeof body.error === 'string') return body.error;
   }
   return fallback;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function request(path, options = {}) {
   const { authenticated = true, body, query, headers, ...rest } = options;
 
-  const doFetch = async (token: string | null): Promise<Response> => {
-    const finalHeaders: Record<string, string> = {
+  const doFetch = async (token) => {
+    const finalHeaders = {
       Accept: 'application/json',
       ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...(headers as Record<string, string> | undefined),
+      ...(headers || {}),
     };
     if (authenticated && token) finalHeaders.Authorization = `Bearer ${token}`;
 
@@ -163,138 +149,45 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const message = await extractMessage(parsed, `Erro ${response.status}`);
     throw new ApiError(response.status, message, parsed);
   }
-  return parsed as T;
-}
-
-// ── Spring Page<T> ────────────────────────────────────────────────────────────
-
-export interface Page<T> {
-  content: T[];
-  totalElements: number;
-  totalPages: number;
-  number: number;
-  size: number;
-  first: boolean;
-  last: boolean;
-  empty: boolean;
+  return parsed;
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
-  tokenType: string;
-  expiresIn: number;
-}
-
-export interface MessageResponse {
-  message: string;
-}
-
 export const authApi = {
-  login: (body: LoginRequest) =>
-    request<AuthResponse>('/api/v1/auth/login', { method: 'POST', body, authenticated: false }),
+  login: (body) =>
+    request('/api/v1/auth/login', { method: 'POST', body, authenticated: false }),
 
-  logout: () => request<MessageResponse>('/api/v1/auth/logout', { method: 'POST' }),
+  logout: () => request('/api/v1/auth/logout', { method: 'POST' }),
 };
 
 // ── Banker ────────────────────────────────────────────────────────────────────
 
-export interface BankerProfileResponse {
-  id: string;
-  name: string;
-  email: string;
-  active: boolean;
-}
-
 export const bankerApi = {
-  getMe: () => request<BankerProfileResponse>('/api/v1/bankers/me'),
+  getMe: () => request('/api/v1/bankers/me'),
 };
 
 // ── Clients ───────────────────────────────────────────────────────────────────
 
-export interface ClientResponse {
-  id: string;
-  name: string;
-  email: string;
-  cpf: string;
-  akropoliLinkId: string | null;
-  active: boolean;
-  categoryId: string | null;
-}
-
-export interface ClientInsightsResponse {
-  clientId: string;
-  bankerId: string;
-  lastSyncAt: string | null;
-  syncStatus: string;
-  totalAssets: string | number;
-  totalLiabilities: string | number;
-  netWorth: string | number | null;
-  creditUtilizationRatio: string | number | null;
-  weightedCet: string | number | null;
-  nextDueAmount30d: string | number | null;
-  cardMinimumOnlyCount: number | null;
-  overdraftUsedAmount: string | number | null;
-  avgMonthlySpend3m: string | number | null;
-  avgMonthlySpend12m: string | number | null;
-  avgMonthlyIncome3m: string | number | null;
-  avgMonthlyIncome12m: string | number | null;
-  incomeDetected: boolean;
-  savingsCapacity3m: string | number | null;
-  debtToIncomeRatio: string | number | null;
-  healthScore: number | null;
-  history?: Array<{
-    snapshotDate: string;
-    totalAssets: string | number;
-    totalLiabilities: string | number;
-    netWorth: string | number | null;
-    creditUtilizationRatio: string | number | null;
-    avgMonthlySpend3m: string | number | null;
-    avgMonthlyIncome3m: string | number | null;
-    nextDueAmount30d: string | number | null;
-    healthScore: number | null;
-  }>;
-}
-
-export interface CategoryBreakdownResponse {
-  clientId: string;
-  fromYearMonth: string;
-  toYearMonth: string;
-  rows: Array<{
-    yearMonth: string;
-    category: string;
-    totalAmount: string | number;
-    transactionCount: number;
-    source: 'ACCOUNT' | 'CARD' | 'MIXED';
-  }>;
-}
-
 export const clientsApi = {
-  list: (params?: { page?: number; size?: number; q?: string }) => {
-    const query: Record<string, string | number> = {
+  list: (params) => {
+    const query = {
       page: params?.page ?? 0,
       size: params?.size ?? 20,
     };
     if (params?.q?.trim()) {
       query.q = params.q.trim();
     }
-    return request<Page<ClientResponse>>('/api/v1/clients', { query });
+    return request('/api/v1/clients', { query });
   },
 
-  getById: (id: string) => request<ClientResponse>(`/api/v1/clients/${id}`),
+  getById: (id) => request(`/api/v1/clients/${id}`),
 
-  getInsights: (id: string) =>
-    request<ClientInsightsResponse>(`/api/v1/clients/${id}/insights`),
+  getInsights: (id) =>
+    request(`/api/v1/clients/${id}/insights`),
 
-  getCategoryBreakdown: (id: string, params?: { from?: string; to?: string }) =>
-    request<CategoryBreakdownResponse>(
+  getCategoryBreakdown: (id, params) =>
+    request(
       `/api/v1/clients/${id}/category-breakdown`,
       { query: params },
     ),

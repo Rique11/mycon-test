@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { clientsApi, ApiError } from '../services/api';
+import { clientsApi, ApiError } from '../services/api.js';
 import type { ClientResponse, Page } from '../services/api';
 
 export interface UseClientListResult {
