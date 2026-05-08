@@ -1,5 +1,6 @@
 import { TOKENS, I } from '../tokens.js';
 import Icon from './Icon.jsx';
+import logoLizard from '../assets/logo-lizard.png';
 
 const NAV_ITEMS = [
   { label: 'Painel',           icon: I.home },
@@ -24,16 +25,14 @@ export default function Sidebar() {
       {/* Brand */}
       <div style={{ padding: '20px 16px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: 8,
-            background: TOKENS.primary,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Icon d={I.flask} size={14} stroke="#fff" strokeWidth={2} />
-          </div>
+          <img
+            src={logoLizard}
+            alt="Lizard"
+            style={{ width: 28, height: 28, objectFit: 'contain', flexShrink: 0 }}
+          />
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: TOKENS.text, letterSpacing: -0.3 }}>
-              Lizard Mycon
+              Lizard
             </div>
             <div style={{ fontSize: 10.5, color: TOKENS.textMuted }}>Consórcio</div>
           </div>
