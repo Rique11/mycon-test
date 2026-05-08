@@ -3,17 +3,37 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./styles.css": "./lizard.css"
+  },
+  "files": [
+    "App.jsx",
+    "ScreenCliente.jsx",
+    "ScreenComposicao.jsx",
+    "components",
+    "index.js",
+    "lizard.css",
+    "tokens.js"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
-  "dependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "vite": "^7.0.0"
   }
 }
