@@ -1,3 +1,6 @@
+// Tela de análise do cliente: contexto, resumo visual de KPIs, evidências de renda,
+// explicação ao operador e decisão sugerida, a partir do hook useClientData.
+
 import React from 'react';
 import { TOKENS, I } from './tokens.js';
 import Icon from './components/Icon.jsx';
@@ -188,7 +191,7 @@ function ContextoCliente({ cliente }) {
         }}>
           {/* Avatar + nome */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Avatar name={cliente.nome} size={44} tone="blue" />
+            <Avatar name={cliente.nome} size={44} tone="brand" />
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                 <span style={{ fontSize: 14.5, fontWeight: 600, color: TOKENS.text }}>{cliente.nome}</span>

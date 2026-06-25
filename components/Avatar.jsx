@@ -1,39 +1,38 @@
-const TONE_BG = {
-  blue:    '#DBEAFE',
-  success: '#DCFCE7',
-  warning: '#FEF3C7',
-  danger:  '#FEE2E2',
-  purple:  '#EDE9FE',
-  gray:    '#F3F4F6',
-};
-const TONE_FG = {
-  blue:    '#1D4ED8',
-  success: '#15803D',
-  warning: '#B45309',
-  danger:  '#B91C1C',
-  purple:  '#6D28D9',
-  gray:    '#374151',
+// Avatar de iniciais com tons do tema Lizard. O tom 'brand' usa o azul-marinho da
+// marca (#102A73) com texto branco, padrão das iniciais na identidade Lizard.
+
+import { TOKENS } from '../tokens.js';
+
+const TONE = {
+  brand:   { bg: TOKENS.brand,        fg: '#FFFFFF' },
+  blue:    { bg: TOKENS.primarySoft,  fg: TOKENS.primaryFg },
+  success: { bg: TOKENS.successSoft,  fg: TOKENS.success },
+  warning: { bg: TOKENS.warningSoft,  fg: TOKENS.warningStrong },
+  danger:  { bg: TOKENS.dangerSoft,   fg: TOKENS.danger },
+  purple:  { bg: TOKENS.purpleSoft,   fg: TOKENS.purple },
+  gray:    { bg: TOKENS.panelAlt,     fg: TOKENS.textMuted },
 };
 
 function initials(name) {
   return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
-export default function Avatar({ name, size = 36, tone = 'blue' }) {
+export default function Avatar({ name, size = 36, tone = 'brand' }) {
+  const t = TONE[tone] ?? TONE.gray;
   return (
     <div style={{
       width: size,
       height: size,
       borderRadius: '50%',
-      background: TONE_BG[tone] ?? TONE_BG.gray,
-      color: TONE_FG[tone] ?? TONE_FG.gray,
+      background: t.bg,
+      color: t.fg,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       fontSize: size * 0.36,
-      fontWeight: 700,
+      fontWeight: 600,
       flexShrink: 0,
-      letterSpacing: -0.5,
+      letterSpacing: -0.3,
       userSelect: 'none',
     }}>
       {initials(name)}

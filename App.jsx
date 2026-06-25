@@ -1,3 +1,6 @@
+// Raiz da aplicação: controla autenticação e a navegação entre as telas de login,
+// lista de clientes, análise do cliente e composição da renda.
+
 import React from 'react';
 import './lizard.css';
 import ScreenCliente from './ScreenCliente.jsx';

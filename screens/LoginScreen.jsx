@@ -1,7 +1,10 @@
+// Tela de login da identidade Lizard Intelligence: marca, formulário de e-mail e
+// senha e autenticação via authApi. Apenas apresentação reestilizada; lógica intacta.
+
 import React from 'react';
-import { TOKENS, I } from '../tokens.js';
-import Icon from '../components/Icon.jsx';
-import Badge from '../components/Badge.jsx';
+import { TOKENS, SHADOWS } from '../tokens.js';
+import Button from '../components/Button.jsx';
+import logoLizard from '../assets/logo-app-icon.png';
 import { authApi, setTokens, ApiError } from '../services/api.js';
 
 export default function LoginScreen() {
@@ -41,131 +44,86 @@ export default function LoginScreen() {
         justifyContent: 'center',
         minHeight: '100vh',
         background: TOKENS.bg,
-        padding: '24px',
+        padding: 24,
       }}
     >
       <div
+        className="lz-anim-fade"
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 32,
+          gap: 28,
           width: '100%',
-          maxWidth: 360,
+          maxWidth: 380,
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 12,
-              background: TOKENS.primary,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Icon d={I.wallet} size={28} stroke="#fff" strokeWidth={1.5} />
-          </div>
+        {/* Marca */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
+          <img
+            src={logoLizard}
+            alt="Lizard"
+            style={{ width: 56, height: 56, borderRadius: 14, boxShadow: SHADOWS.brand, display: 'block', objectFit: 'cover' }}
+          />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
-            <h1 style={{ fontSize: 24, fontWeight: 600, color: TOKENS.text, margin: 0 }}>
-              mycon
+            <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.3, color: TOKENS.title, margin: 0 }}>
+              Lizard Intelligence
             </h1>
             <p style={{ fontSize: 13, color: TOKENS.textMuted, margin: 0 }}>
-              Análise financeira para consultores
+              Open Finance · Mycon Crédito
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {error && <Badge tone="danger" label={error} />}
+        {/* Formulário */}
+        <div className="card" style={{ padding: '24px 22px' }}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {error && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px',
+                borderRadius: 9, background: TOKENS.dangerSoft, color: TOKENS.danger, fontSize: 12.5, fontWeight: 500,
+              }}>
+                {error}
+              </div>
+            )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: TOKENS.text,
-              }}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 12.5, fontWeight: 600, color: TOKENS.text }}>Email</label>
+              <input
+                type="email"
+                className="input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 12.5, fontWeight: 600, color: TOKENS.text }}>Senha</label>
+              <input
+                type="password"
+                className="input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <Button
+              type="submit"
+              size="default"
+              disabled={loading || !email || !password}
+              style={{ width: '100%', marginTop: 2 }}
             >
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              required
-              disabled={loading}
-              style={{
-                padding: '10px 12px',
-                fontSize: 14,
-                border: `1px solid ${TOKENS.border}`,
-                borderRadius: 8,
-                background: TOKENS.surface,
-                color: TOKENS.text,
-                fontFamily: 'inherit',
-              }}
-            />
-          </div>
+              {loading ? 'Entrando...' : 'Entrar'}
+            </Button>
+          </form>
+        </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: TOKENS.text,
-              }}
-            >
-              Senha
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              disabled={loading}
-              style={{
-                padding: '10px 12px',
-                fontSize: 14,
-                border: `1px solid ${TOKENS.border}`,
-                borderRadius: 8,
-                background: TOKENS.surface,
-                color: TOKENS.text,
-                fontFamily: 'inherit',
-              }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || !email || !password}
-            style={{
-              padding: '10px 16px',
-              fontSize: 14,
-              fontWeight: 500,
-              background: TOKENS.primary,
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading || !email || !password ? 0.5 : 1,
-              transition: 'opacity 0.2s',
-            }}
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <p
-          style={{
-            fontSize: 12,
-            color: TOKENS.textMuted,
-            textAlign: 'center',
-            margin: 0,
-          }}
-        >
+        <p style={{ fontSize: 12, color: TOKENS.textSubtle, textAlign: 'center', margin: 0 }}>
           Use suas credenciais do painel administrativo
         </p>
       </div>

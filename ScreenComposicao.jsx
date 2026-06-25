@@ -1,3 +1,6 @@
+// Tela de composição da renda verificada: resumo, tabela mensal, detalhamento de
+// créditos por mês, critérios e leitura operacional. Apresentação na identidade Lizard.
+
 import React from 'react';
 import { TOKENS, I } from './tokens.js';
 import Icon from './components/Icon.jsx';
@@ -44,7 +47,7 @@ function CompHeader({ onVoltar }) {
           Cliente contemplado · Larissa Teixeira
         </a>
         <h1 style={{
-          margin: 0, fontSize: 24, fontWeight: 600, letterSpacing: -0.6, color: TOKENS.text,
+          margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: -0.6, color: TOKENS.title,
           display: 'flex', alignItems: 'center', gap: 10,
         }}>
           Composição da renda verificada
@@ -103,7 +106,7 @@ function ContextoCliente() {
         background: TOKENS.panel, borderRadius: 10, border: `1px solid ${TOKENS.border}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Avatar name="Larissa Teixeira" size={42} tone="blue" />
+          <Avatar name="Larissa Teixeira" size={42} tone="brand" />
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 14.5, fontWeight: 600, color: TOKENS.text }}>Larissa Teixeira</span>

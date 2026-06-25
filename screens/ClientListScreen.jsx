@@ -1,3 +1,6 @@
+// Tela de lista de clientes: busca e grade de cartões de clientes a partir do hook
+// useClientList. Reestilizada na identidade Lizard; comportamento preservado.
+
 import React from 'react';
 import { TOKENS, I } from '../tokens.js';
 import Icon from '../components/Icon.jsx';
@@ -66,7 +69,7 @@ export default function ClientListScreen({ onSelectClient, onLogout }) {
           borderBottom: `1px solid ${TOKENS.border}`,
           background: TOKENS.surface,
         }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: TOKENS.text, margin: 0 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.4, color: TOKENS.title, margin: 0 }}>
             Meus Clientes
           </h1>
           <span style={{ fontSize: 13, color: TOKENS.textMuted }}>
@@ -135,13 +138,13 @@ export default function ClientListScreen({ onSelectClient, onLogout }) {
                         <div style={{
                           width: 40,
                           height: 40,
-                          borderRadius: 8,
-                          background: TOKENS.primarySoft,
-                          color: TOKENS.primary,
+                          borderRadius: 10,
+                          background: TOKENS.brand,
+                          color: '#fff',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          fontWeight: 700,
+                          fontWeight: 600,
                           fontSize: 14,
                           flexShrink: 0,
                         }}>

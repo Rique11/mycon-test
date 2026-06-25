@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mycon · Reestilização Lizard — Antes / Depois</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #eef1f6; color: #1B2335; padding: 28px; -webkit-font-smoothing: antialiased; }
+  .num { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+  h1 { font-size: 20px; font-weight: 700; color: #101A33; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: #5F6F89; margin-bottom: 22px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .col h2 { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 10px; }
+  .tagA { color: #9CA3AF; } .tagB { color: #2454D9; }
+  .frame { border-radius: 14px; overflow: hidden; display: flex; height: 430px; box-shadow: 0 10px 30px rgba(16,26,51,.10); }
+  .side { width: 190px; flex: none; display: flex; flex-direction: column; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 16px 14px 12px; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; color: #fff; }
+  .nav { padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .nav a { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; font-weight: 500; text-decoration: none; position: relative; }
+  .dotic { width: 14px; height: 14px; border-radius: 4px; border: 1.6px solid currentColor; flex: none; }
+  .foot { padding: 12px; }
+  .pill { display: flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+  .main { flex: 1; display: flex; flex-direction: column; }
+  .top { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; }
+  .top h3 { font-size: 16px; font-weight: 700; }
+  .chip { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+  .body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { border: none; border-radius: 10px; padding: 9px 15px; font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer; }
+  .btn-ghost { background: transparent; }
+  .badges { display: flex; gap: 7px; flex-wrap: wrap; }
+  .badge { font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; }
+  .bdot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi { border-radius: 12px; padding: 13px 15px; }
+  .kpi .l { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 7px; }
+  .kpi .v { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+  .kpi .ic { width: 24px; height: 24px; border-radius: 7px; display: inline-block; margin-bottom: 8px; }
+  .note { font-size: 11px; color: #8A99B4; margin-top: 18px; }
+
+  .A .frame { background: #F3F4F6; }
+  .A .side { background: #fff; border-right: 1px solid #E5E7EB; }
+  .A .logo { background: #2563EB; }
+  .A .brand b { color: #111827; font-size: 13px; } .A .brand span { color: #6B7280; font-size: 10px; }
+  .A .nav a { color: #6B7280; }
+  .A .nav a.active { background: #EFF6FF; color: #2563EB; }
+  .A .pill { background: #F3F4F6; color: #6B7280; }
+  .A .main { background: #F3F4F6; }
+  .A .top { background: #fff; border-bottom: 1px solid #E5E7EB; } .A .top h3 { color: #111827; }
+  .A .chip { background: #F3F4F6; color: #6B7280; }
+  .A .btn-primary { background: #2563EB; color: #fff; }
+  .A .btn-ghost { border: 1px solid #E5E7EB; color: #374151; }
+  .A .b-blue { background: #EFF6FF; color: #2563EB; } .A .b-suc { background: #F0FDF4; color: #16A34A; }
+  .A .b-warn { background: #FFFBEB; color: #D97706; } .A .b-dng { background: #FEF2F2; color: #DC2626; }
+  .A .kpi { background: #fff; border: 1px solid #E5E7EB; } .A .kpi .l { color: #6B7280; } .A .kpi .v { color: #111827; }
+  .A .ic-b { background: #EFF6FF; } .A .ic-s { background: #F0FDF4; }
+
+  .B .frame { background: #F5F8FC; }
+  .B .side { background: #fff; border-right: 1px solid #E4EAF2; }
+  .B .logo { background: #102A73; }
+  .B .brand b { color: #101A33; font-size: 13px; } .B .brand span { color: #8A99B4; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; }
+  .B .nav a { color: #5F6F89; }
+  .B .nav a.active { background: #EAF0FE; color: #1F4FE0; font-weight: 600; }
+  .B .nav a.active::before { content:''; position:absolute; left:0; top:7px; bottom:7px; width:3px; border-radius:3px; background:#2454D9; }
+  .B .pill { background: #FBF6E9; color: #946312; border: 1px solid #F1E4C2; }
+  .B .main { background: #F5F8FC; }
+  .B .top { background: #fff; border-bottom: 1px solid #E4EAF2; } .B .top h3 { color: #101A33; }
+  .B .chip { background: #EAF0FE; color: #1F4FE0; border: 1px solid #D4E0FB; }
+  .B .btn-primary { background: #2454D9; color: #fff; box-shadow: 0 2px 6px rgba(36,84,217,.28); }
+  .B .btn-ghost { border: 1px solid #E4EAF2; color: #1B2335; }
+  .B .b-blue { background: #EAF0FE; color: #1F4FE0; border: 1px solid #D4E0FB; } .B .b-suc { background: #E6F6EE; color: #1B7F4B; }
+  .B .b-warn { background: #FBF6E9; color: #946312; border: 1px solid #F1E4C2; } .B .b-dng { background: #FBE9EA; color: #C13238; }
+  .B .kpi { background: #fff; border: 1px solid #E4EAF2; } .B .kpi .l { color: #5F6F89; } .B .kpi .v { color: #101A33; }
+  .B .ic-b { background: #EAF0FE; } .B .ic-s { background: #E6F6EE; }
+</style>
+</head>
+<body>
+  <h1>Mycon · Reestilização visual — Lizard Intelligence</h1>
+  <div class="sub">Comparativo da identidade aplicada (mesma estrutura e lógica; apenas tema, tipografia, raios e sombras).</div>
+
+  <div class="grid">
+    <div class="col A">
+      <h2 class="tagA">Antes — paleta genérica</h2>
+      <div class="frame">
+        <div class="side">
+          <div class="brand"><div class="logo">m</div><div><b>mycon</b><br><span>Analytics</span></div></div>
+          <div class="nav">
+            <a><span class="dotic"></span>Painel</a>
+            <a class="active"><span class="dotic"></span>Clientes</a>
+            <a><span class="dotic"></span>Relatórios</a>
+            <a><span class="dotic"></span>Configurações</a>
+          </div>
+          <div class="foot"><div class="pill">● Operador Mycon</div></div>
+        </div>
+        <div class="main">
+          <div class="top"><h3>Análise do cliente</h3><span class="chip">Mycon</span></div>
+          <div class="body">
+            <div class="row">
+              <button class="btn btn-primary">Aprovar comprovação</button>
+              <button class="btn btn-ghost">Revisão manual</button>
+            </div>
+            <div class="badges">
+              <span class="badge b-blue"><span class="bdot"></span>Open Finance</span>
+              <span class="badge b-suc"><span class="bdot"></span>Ativo</span>
+              <span class="badge b-warn"><span class="bdot"></span>Pendência</span>
+              <span class="badge b-dng"><span class="bdot"></span>Risco</span>
+            </div>
+            <div class="kpis">
+              <div class="kpi"><span class="ic ic-b"></span><div class="l">Renda verificada</div><div class="v num">R$ 6.450,00</div></div>
+              <div class="kpi"><span class="ic ic-s"></span><div class="l">Score de saúde</div><div class="v num">82%</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col B">
+      <h2 class="tagB">Depois — identidade Lizard</h2>
+      <div class="frame">
+        <div class="side">
+          <div class="brand"><div class="logo">L</div><div><b>Lizard</b><br><span>Intelligence</span></div></div>
+          <div class="nav">
+            <a><span class="dotic"></span>Painel</a>
+            <a><span class="dotic"></span>POC Contemplados</a>
+            <a class="active"><span class="dotic"></span>Clientes</a>
+            <a><span class="dotic"></span>Relatórios</a>
+            <a><span class="dotic"></span>Configurações</a>
+          </div>
+          <div class="foot"><div class="pill">⚗ Ambiente de testes · POC</div></div>
+        </div>
+        <div class="main">
+          <div class="top"><h3>Análise do cliente</h3><span class="chip">Mycon × Lizard</span></div>
+          <div class="body">
+            <div class="row">
+              <button class="btn btn-primary">Aprovar comprovação</button>
+              <button class="btn btn-ghost">Revisão manual</button>
+            </div>
+            <div class="badges">
+              <span class="badge b-blue"><span class="bdot"></span>Open Finance</span>
+              <span class="badge b-suc"><span class="bdot"></span>Ativo</span>
+              <span class="badge b-warn"><span class="bdot"></span>Pendência</span>
+              <span class="badge b-dng"><span class="bdot"></span>Risco</span>
+            </div>
+            <div class="kpis">
+              <div class="kpi"><span class="ic ic-b"></span><div class="l">Renda verificada</div><div class="v num">R$ 6.450,00</div></div>
+              <div class="kpi"><span class="ic ic-s"></span><div class="l">Score de saúde</div><div class="v num">82%</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">Pré-visualização estática de cores/tipografia/raios. As telas reais (Login, Clientes, Análise, Composição) usam exatamente estes tokens via tokens.js + lizard.css.</div>
+</body>
+</html>

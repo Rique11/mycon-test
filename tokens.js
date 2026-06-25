@@ -1,28 +1,70 @@
+// Design tokens da identidade Lizard Intelligence: paleta, raios e sombras.
+// Espelha as CSS variables (formato shadcn) definidas em lizard.css; é consumido
+// pelos estilos inline dos componentes/telas como fonte única de cor.
+
 export const TOKENS = {
-  bg: '#F3F4F6',
+  // Fundo e superfícies
+  bg: '#F5F8FC',
   surface: '#FFFFFF',
-  panel: '#F9FAFB',
-  border: '#E5E7EB',
-  borderStrong: '#D1D5DB',
-  text: '#111827',
-  textMuted: '#6B7280',
-  textSubtle: '#9CA3AF',
-  primary: '#2563EB',
-  primaryFg: '#1D4ED8',
-  primarySoft: '#EFF6FF',
-  success: '#16A34A',
-  successSoft: '#F0FDF4',
-  warning: '#D97706',
-  warningSoft: '#FFFBEB',
-  danger: '#DC2626',
-  dangerSoft: '#FEF2F2',
-  purple: '#7C3AED',
-  purpleSoft: '#F5F3FF',
+  panel: '#FAFBFE',
+  panelAlt: '#F2F5FA',
+  panelSoft: '#F7F9FC',
+
+  // Bordas
+  border: '#E4EAF2',
+  borderStrong: '#DDE5F0',
+
+  // Texto
+  title: '#101A33',
+  text: '#1B2335',
+  textBody: '#141B2E',
+  textMuted: '#5F6F89',
+  textSubtle: '#8A99B4',
+  textFaint: '#A6B2C8',
+
+  // Marca / primária
+  primary: '#2454D9',
+  primaryHover: '#1F4FE0',
+  primaryFg: '#1F4FE0',
+  primarySoft: '#EAF0FE',
+  primarySoftBorder: '#D4E0FB',
+  brand: '#102A73',
+
+  // Semânticos
+  success: '#1B7F4B',
+  successStrong: '#27A567',
+  successSoft: '#E6F6EE',
+  warning: '#B7791F',
+  warningStrong: '#946312',
+  warningSoft: '#FBF6E9',
+  warningSoftAlt: '#FBF1DE',
+  warningBorder: '#F1E4C2',
+  danger: '#C13238',
+  dangerStrong: '#E5484D',
+  dangerSoft: '#FBE9EA',
+  purple: '#5B53C9',
+  purpleSoft: '#ECEBFA',
+};
+
+export const RADII = {
+  base: 9,
+  card: 12,
+  control: 10,
+  modal: 14,
+  pill: 999,
+};
+
+export const SHADOWS = {
+  primary: '0 2px 6px rgba(36,84,217,.28)',
+  brand: '0 1px 2px rgba(16,42,115,.18)',
+  modal: '0 24px 60px rgba(16,26,51,.28)',
+  slideOver: '-12px 0 40px rgba(16,26,51,.18)',
 };
 
 export const I = {
   chevLeft:    'M15 18l-6-6 6-6',
   chevRight:   'M9 18l6-6-6-6',
+  chevDown:    'M6 9l6 6 6-6',
   download:    'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3',
   doc:         'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
   x:           'M18 6L6 18M6 6l12 12',
@@ -44,4 +86,9 @@ export const I = {
   fileText:    'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
   settings:    'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z',
   flask:       'M9 3h6l3 9H6L9 3zM6.5 21a5.5 5.5 0 1011 0H6.5z',
+  grid:        'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  box:         'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z',
+  bars:        'M18 20V10M12 20V4M6 20v-6',
+  search:      'M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35',
+  bell:        'M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0',
 };

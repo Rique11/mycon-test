@@ -1,8 +1,11 @@
+// Indicador numérico de etapa: círculo com fundo azul suave e número em
+// JetBrains Mono (classe .num), no estilo dos steppers da identidade Lizard.
+
 import { TOKENS } from '../tokens.js';
 
 export default function StepNumber({ n }) {
   return (
-    <span style={{
+    <span className="num" style={{
       display: 'inline-flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -10,10 +13,11 @@ export default function StepNumber({ n }) {
       height: 22,
       borderRadius: '50%',
       background: TOKENS.primarySoft,
-      color: TOKENS.primary,
+      color: TOKENS.primaryFg,
       fontSize: 11.5,
       fontWeight: 700,
       flexShrink: 0,
+      border: `1px solid ${TOKENS.primarySoftBorder}`,
     }}>
       {n}
     </span>

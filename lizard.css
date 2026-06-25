@@ -1,6 +1,74 @@
-/* Inter + JetBrains Mono via Google Fonts — adicione no HTML ou no index.html do projeto:
-   <link rel="preconnect" href="https://fonts.googleapis.com">
-   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"> */
+/* Tema e estilos base da identidade Lizard Intelligence no formato de theming do
+   shadcn/ui (CSS variables semânticas), sem Tailwind. Define a paleta, raios,
+   tipografia (Inter + JetBrains Mono), animações e as classes de variante
+   consumidas pelos componentes (card, button, badge, input, nav, link, tabela). */
+
+/* Fontes — Inter + JetBrains Mono (declarar também no index.html):
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"> */
+
+:root {
+  /* Superfícies */
+  --background: #F5F8FC;
+  --foreground: #141B2E;
+  --card: #FFFFFF;
+  --card-foreground: #1B2335;
+  --popover: #FFFFFF;
+  --popover-foreground: #1B2335;
+  --panel: #FAFBFE;
+  --panel-alt: #F2F5FA;
+  --panel-soft: #F7F9FC;
+
+  /* Texto / muted */
+  --title: #101A33;
+  --muted: #F2F5FA;
+  --muted-foreground: #5F6F89;
+  --subtle-foreground: #8A99B4;
+  --faint-foreground: #A6B2C8;
+
+  /* Primária / marca */
+  --primary: #2454D9;
+  --primary-hover: #1F4FE0;
+  --primary-foreground: #FFFFFF;
+  --primary-accent: #1F4FE0;
+  --primary-soft: #EAF0FE;
+  --primary-soft-border: #D4E0FB;
+  --brand: #102A73;
+
+  /* Estados semânticos */
+  --success: #1B7F4B;
+  --success-strong: #27A567;
+  --success-soft: #E6F6EE;
+  --warning: #B7791F;
+  --warning-strong: #946312;
+  --warning-soft: #FBF6E9;
+  --warning-border: #F1E4C2;
+  --destructive: #C13238;
+  --destructive-strong: #E5484D;
+  --destructive-soft: #FBE9EA;
+  --purple: #5B53C9;
+  --purple-soft: #ECEBFA;
+
+  /* Bordas / inputs / foco */
+  --border: #E4EAF2;
+  --border-strong: #DDE5F0;
+  --input: #DDE5F0;
+  --ring: #2454D9;
+
+  /* Raios (escala shadcn baseada em --radius) */
+  --radius: 9px;
+  --radius-sm: 7px;
+  --radius-md: 9px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-modal: 14px;
+  --radius-pill: 999px;
+
+  /* Sombras */
+  --shadow-primary: 0 2px 6px rgba(36, 84, 217, .28);
+  --shadow-brand: 0 1px 2px rgba(16, 42, 115, .18);
+  --shadow-modal: 0 24px 60px rgba(16, 26, 51, .28);
+  --shadow-slideover: -12px 0 40px rgba(16, 26, 51, .18);
+}
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -10,8 +78,8 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #F3F4F6;
-  color: #111827;
+  background: var(--background);
+  color: var(--foreground);
 }
 
 .num {
@@ -19,74 +87,162 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Animações do protótipo */
+@keyframes panelIn { from { transform: translateX(36px); opacity: .4; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
+
+.lz-anim-panel { animation: panelIn .22s cubic-bezier(.22, .61, .36, 1); }
+.lz-anim-fade  { animation: fadeIn .18s ease; }
+
 /* ── Card ───────────────────────────────────────────── */
+.card,
 .lz-card {
-  background: #fff;
-  border: 1px solid #E5E7EB;
-  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
   padding: 18px 20px;
 }
 
-/* ── Buttons ────────────────────────────────────────── */
-.lz-btn-ghost {
-  background: transparent;
-  border: 1px solid #E5E7EB;
-  border-radius: 10px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.12s, border-color 0.12s;
-}
-.lz-btn-ghost:hover {
-  background: #F3F4F6;
-  border-color: #D1D5DB;
+/* ── Foco acessível (anel padrão shadcn) ────────────── */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 4px color-mix(in srgb, var(--ring) 55%, transparent);
+  border-radius: var(--radius-md);
 }
 
+/* ── Buttons (variantes estilo shadcn) ──────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .14s, border-color .14s, color .14s, box-shadow .14s;
+}
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.btn-primary,
 .lz-btn-primary {
-  background: #2563EB;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.12s;
+  box-shadow: var(--shadow-primary);
+  transition: background .14s, box-shadow .14s;
 }
-.lz-btn-primary:hover {
-  background: #1D4ED8;
+.btn-primary:hover,
+.lz-btn-primary:hover { background: var(--primary-hover); }
+
+.btn-ghost,
+.lz-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--card-foreground);
+  transition: background .14s, border-color .14s;
 }
+.btn-ghost:hover,
+.lz-btn-ghost:hover {
+  background: var(--panel-alt);
+  border-color: var(--border-strong);
+}
+
+.btn-outline {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+.btn-outline:hover { background: var(--panel-alt); border-color: var(--border-strong); }
+
+.btn-secondary {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--card-foreground);
+}
+.btn-secondary:hover { background: var(--panel-alt); }
+
+/* ── Input ──────────────────────────────────────────── */
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--card-foreground);
+  background: var(--panel);
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  transition: border-color .14s, background .14s, box-shadow .14s;
+}
+.input::placeholder { color: var(--subtle-foreground); }
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: var(--card);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent);
+}
+
+/* ── Badge (variantes estilo shadcn) ────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+}
+.badge-sm { font-size: 11px; padding: 2px 7px; }
+.badge-md { font-size: 12.5px; padding: 4px 10px; }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.badge-sm .badge-dot { width: 5px; height: 5px; }
+
+.badge-blue    { background: var(--primary-soft);     color: var(--primary-accent);  border-color: var(--primary-soft-border); }
+.badge-success { background: var(--success-soft);     color: var(--success); }
+.badge-warning { background: var(--warning-soft);     color: var(--warning-strong);  border-color: var(--warning-border); }
+.badge-danger  { background: var(--destructive-soft); color: var(--destructive); }
+.badge-purple  { background: var(--purple-soft);      color: var(--purple); }
+.badge-neutral { background: var(--muted);            color: var(--muted-foreground); }
 
 /* ── Link ───────────────────────────────────────────── */
 .lz-link {
-  color: #2563EB;
+  color: var(--primary-accent);
   text-decoration: none;
   cursor: pointer;
-  transition: color 0.12s;
+  transition: color .12s;
 }
 .lz-link:hover {
-  color: #1D4ED8;
+  color: var(--primary-hover);
   text-decoration: underline;
 }
 
 /* ── Table row hover ────────────────────────────────── */
-.lz-row-hover {
-  transition: background 0.1s;
-}
-.lz-row-hover:hover {
-  background: #F9FAFB;
-}
+.lz-row-hover { transition: background .1s; }
+.lz-row-hover:hover { background: var(--panel); }
 
 /* ── Sidebar nav item ───────────────────────────────── */
 .lz-nav-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 9px;
+  gap: 11px;
+  padding: 9px 11px;
+  border-radius: var(--radius-md);
   font-size: 13.5px;
   font-weight: 500;
-  color: #6B7280;
+  color: var(--muted-foreground);
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.12s, color 0.12s;
+  transition: background .12s, color .12s;
   border: none;
   background: transparent;
   width: 100%;
@@ -94,16 +250,27 @@ body {
   font-family: inherit;
 }
 .lz-nav-item:hover {
-  background: #F3F4F6;
-  color: #111827;
+  background: var(--panel-alt);
+  color: var(--card-foreground);
 }
 .lz-nav-item.active {
-  background: #EFF6FF;
-  color: #2563EB;
+  background: var(--primary-soft);
+  color: var(--primary-accent);
+  font-weight: 600;
+}
+.lz-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--primary);
 }
 
 /* ── Scrollbar (webkit) ─────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--subtle-foreground); }

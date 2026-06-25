@@ -1,14 +1,11 @@
-import { TOKENS } from '../tokens.js';
+// Card no padrão shadcn: superfície branca com borda e raio do tema Lizard via
+// classe CSS .card, aceitando override de padding, estilos e handlers extras.
 
-export default function Card({ children, padding = '18px 20px', style = {} }) {
+import { cn } from '../lib/utils.js';
+
+export default function Card({ children, padding = '18px 20px', className = '', style = {}, ...props }) {
   return (
-    <div style={{
-      background: TOKENS.surface,
-      border: `1px solid ${TOKENS.border}`,
-      borderRadius: 12,
-      padding,
-      ...style,
-    }}>
+    <div className={cn('card', className)} style={{ padding, ...style }} {...props}>
       {children}
     </div>
   );
