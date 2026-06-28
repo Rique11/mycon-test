@@ -28,6 +28,37 @@ function fmtDate(iso) {
   }
 }
 
+// Ícone "i" com tooltip exibido ao passar o mouse, explicando a métrica do card.
+function InfoTip({ text }) {
+  const [show, setShow] = React.useState(false);
+  if (!text) return null;
+  return (
+    <span
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      style={{ position: 'relative', display: 'inline-flex', marginLeft: 'auto', flexShrink: 0 }}
+    >
+      <span style={{
+        width: 16, height: 16, borderRadius: '50%',
+        border: `1px solid ${show ? TOKENS.primary : TOKENS.border}`,
+        color: show ? TOKENS.primary : TOKENS.textSubtle,
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 10, fontWeight: 700, fontFamily: 'Georgia, serif', fontStyle: 'italic',
+        cursor: 'help', userSelect: 'none', transition: 'color .12s, border-color .12s',
+      }}>i</span>
+      {show && (
+        <span role="tooltip" style={{
+          position: 'absolute', bottom: 'calc(100% + 8px)', right: -4, zIndex: 30,
+          width: 210, padding: '8px 10px', background: TOKENS.title, color: '#fff',
+          borderRadius: 8, fontSize: 11, lineHeight: 1.45, fontWeight: 400,
+          letterSpacing: 0, textTransform: 'none', textAlign: 'left',
+          boxShadow: '0 10px 28px rgba(16,26,51,.28)', pointerEvents: 'none',
+        }}>{text}</span>
+      )}
+    </span>
+  );
+}
+
 // ───────── Tela principal ─────────
 export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
   const { logout } = useAuth();
@@ -267,18 +298,22 @@ function ResumoVisual({ cliente, insights }) {
     {
       label: 'Renda verificada', value: fmtBRL(cliente.rendaVerificada),
       sub: 'Média mensal (3m)', tone: 'blue', icon: I.wallet, mono: true,
+      info: 'Mediana da renda mensal recorrente (créditos de pagadores presentes em ≥4 meses, via Open Finance) nos últimos meses completos.',
     },
     {
       label: 'Fonte de renda', value: cliente.fontes > 0 ? 'Detectada' : 'Não detectada',
       sub: 'Renda recorrente', tone: cliente.fontes > 0 ? 'success' : 'warning', icon: I.refresh, mono: false,
+      info: 'Indica se há pagador recorrente (créditos em ≥4 meses) identificado nos lançamentos do Open Finance.',
     },
     {
       label: 'Débito/Renda', value: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—',
       sub: 'Saldo devedor ÷ renda', tone: 'warning', icon: I.alert, mono: true,
+      info: 'Saldo devedor total dos empréstimos (Open Finance) dividido pela renda verificada mensal. Ex.: 2× = dívida equivale a 2 meses de renda.',
     },
     {
       label: 'Capacidade de poupança', value: insights?.savingsCapacity3m != null ? fmtBRL(insights.savingsCapacity3m) : '—',
       sub: 'Renda − despesa (3m)', tone: 'success', icon: I.chart, mono: true,
+      info: 'Renda verificada menos a despesa média mensal dos últimos 3 meses. Valor negativo indica déficit (gasta mais que a renda comprovada).',
     },
   ];
 
@@ -310,6 +345,7 @@ function ResumoVisual({ cliente, insights }) {
                 <div style={{ fontSize: 11, color: TOKENS.textMuted, fontWeight: 500, lineHeight: 1.25 }}>
                   {k.label}
                 </div>
+                <InfoTip text={k.info} />
               </div>
               {k.isBadge ? (
                 <Badge tone={k.badgeTone} size="md" dot>{k.value}</Badge>
@@ -337,6 +373,7 @@ function ResumoVisual({ cliente, insights }) {
               <Icon d={cliente.fontes > 0 ? I.shieldCheck : I.alert} size={13} stroke="#fff" strokeWidth={2} />
             </div>
             <span style={{ fontSize: 11, color: TOKENS.textMuted, fontWeight: 500 }}>Recomendação</span>
+            <InfoTip text="Sugestão automática com base na detecção de renda recorrente comprovável no Open Finance. Não substitui a análise do operador." />
           </div>
           <div style={{ fontSize: 13.5, fontWeight: 700, color: cliente.fontes > 0 ? TOKENS.success : TOKENS.warning, lineHeight: 1.3 }}>
             {cliente.fontes > 0 ? 'Aprovar comprovação de renda' : 'Solicitar complemento de renda'}
@@ -364,10 +401,14 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
       </p>
       <Card>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
-          <EvidKpi label="Salário recorrente" value={cliente.fontes > 0 ? 'Sim' : 'Não'} sub={cliente.fontes > 0 ? 'Depósitos em dia útil' : 'Não detectado'} tone={cliente.fontes > 0 ? 'success' : 'warning'} />
-          <EvidKpi label="Média 3 meses" value={fmtBRL(cliente.rendaVerificada)} sub="Últimos 3 meses" mono />
-          <EvidKpi label="Variação mensal" value={cliente.variacao != null ? `${cliente.variacao}%` : '—'} sub="Coef. de variação" tone="warning" mono />
-          <EvidKpi label="Atípicos" value={fmtBRL(cliente.atipicos)} sub="Excluídos da média" tone="neutral" mono />
+          <EvidKpi label="Salário recorrente" value={cliente.fontes > 0 ? 'Sim' : 'Não'} sub={cliente.fontes > 0 ? 'Depósitos em dia útil' : 'Não detectado'} tone={cliente.fontes > 0 ? 'success' : 'warning'}
+            info="Há crédito de pagador recorrente (presente em ≥4 meses) identificado nos lançamentos do Open Finance." />
+          <EvidKpi label="Média 3 meses" value={fmtBRL(cliente.rendaVerificada)} sub="Últimos 3 meses" mono
+            info="Mediana da renda validada nos 3 meses completos mais recentes." />
+          <EvidKpi label="Variação mensal" value={cliente.variacao != null ? `${cliente.variacao}%` : '—'} sub="Coef. de variação" tone="warning" mono
+            info="Coeficiente de variação da renda mensal. Ainda não calculado pelo backend (exibe '—')." />
+          <EvidKpi label="Atípicos" value={fmtBRL(cliente.atipicos)} sub="Excluídos da média" tone="neutral" mono
+            info="Créditos atípicos (ex.: rendimento/resgate de investimento) que não compõem a renda recorrente." />
         </div>
 
         {/* Chart */}
@@ -398,7 +439,7 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
   );
 }
 
-function EvidKpi({ label, value, sub, tone, mono = false }) {
+function EvidKpi({ label, value, sub, tone, mono = false, info }) {
   const colorMap = { success: TOKENS.success, warning: TOKENS.warning, danger: TOKENS.danger };
   const color = colorMap[tone] ?? TOKENS.text;
   return (
@@ -406,8 +447,11 @@ function EvidKpi({ label, value, sub, tone, mono = false }) {
       padding: '12px 14px', background: TOKENS.panel,
       border: `1px solid ${TOKENS.border}`, borderRadius: 10,
     }}>
-      <div style={{ fontSize: 11, color: TOKENS.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
-        {label}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <div style={{ fontSize: 11, color: TOKENS.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+          {label}
+        </div>
+        <InfoTip text={info} />
       </div>
       <div className={mono ? 'num' : ''} style={{ fontSize: 18, fontWeight: 700, color, letterSpacing: -0.3 }}>
         {value}
