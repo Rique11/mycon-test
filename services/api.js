@@ -3,7 +3,7 @@
  * Gerencia autenticação, tokens e requisições aos endpoints da API.
  */
 
-const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8081').replace(/\/+$/, '');
+const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8083').replace(/\/+$/, '');
 
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
