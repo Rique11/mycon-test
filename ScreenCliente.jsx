@@ -100,11 +100,11 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
     rendaVerificada: parseFloat(insights.avgMonthlyIncome3m ?? 0),
     diferenca: (parseFloat(insights.avgMonthlyIncome12m ?? 0) - parseFloat(insights.avgMonthlyIncome3m ?? 0)),
     divergencia: 0,
-    variacao: 3.2,
-    fontes: 1,
+    variacao: null,
+    fontes: insights.incomeDetected ? 1 : 0,
     atipicos: 0,
     confianca: insights.healthScore ? (insights.healthScore > 75 ? 'Alta' : 'Média') : 'Baixa',
-    dataAnalise: insights.lastSyncAt ? fmtDate(insights.lastSyncAt) + ' · 09:41' : '—',
+    dataAnalise: insights.lastSyncAt ? fmtDate(insights.lastSyncAt) : '—',
     contemplacao: '—',
     prioridade: 'Média',
     consultor: '—',
@@ -368,7 +368,7 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
           <EvidKpi label="Salário recorrente" value={cliente.fontes > 0 ? 'Sim' : 'Não'} sub={cliente.fontes > 0 ? 'Depósitos em dia útil' : 'Não detectado'} tone={cliente.fontes > 0 ? 'success' : 'warning'} />
           <EvidKpi label="Média 3 meses" value={fmtBRL(cliente.rendaVerificada)} sub="Últimos 3 meses" mono />
-          <EvidKpi label="Variação mensal" value={`${cliente.variacao}%`} sub="Coef. de variação" tone="warning" mono />
+          <EvidKpi label="Variação mensal" value={cliente.variacao != null ? `${cliente.variacao}%` : '—'} sub="Coef. de variação" tone="warning" mono />
           <EvidKpi label="Atípicos" value={fmtBRL(cliente.atipicos)} sub="Excluídos da média" tone="neutral" mono />
         </div>
 
