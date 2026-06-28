@@ -260,27 +260,22 @@ function Field({ label, value, mono = false }) {
 
 // ───────── 2. Resumo visual ─────────
 function ResumoVisual({ cliente, insights }) {
-  const healthScore = insights?.healthScore ?? 0;
   const kpis = [
     {
       label: 'Renda verificada', value: fmtBRL(cliente.rendaVerificada),
       sub: 'Média mensal (3m)', tone: 'blue', icon: I.wallet, mono: true,
     },
     {
-      label: 'Score de saúde', value: `${Math.round(healthScore)}%`,
-      sub: 'Indicador geral', tone: healthScore > 75 ? 'success' : 'warning', icon: I.shieldCheck, isBadge: false,
-    },
-    {
       label: 'Fonte de renda', value: cliente.fontes > 0 ? 'Detectada' : 'Não detectada',
-      sub: 'Income detected', tone: cliente.fontes > 0 ? 'success' : 'warning', icon: I.refresh, mono: false,
+      sub: 'Renda recorrente', tone: cliente.fontes > 0 ? 'success' : 'warning', icon: I.refresh, mono: false,
     },
     {
-      label: 'Débito/Renda', value: insights?.debtToIncomeRatio ? `${(parseFloat(insights.debtToIncomeRatio) * 100).toFixed(0)}%` : '—',
-      sub: 'Índice de endividamento', tone: 'warning', icon: I.alert, mono: true,
+      label: 'Débito/Renda', value: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—',
+      sub: 'Saldo devedor ÷ renda', tone: 'warning', icon: I.alert, mono: true,
     },
     {
-      label: 'Capacidade de poupança', value: fmtBRL(insights?.savingsCapacity3m ?? 0),
-      sub: 'Últimos 3 meses', tone: 'success', icon: I.chart, isBadge: false,
+      label: 'Capacidade de poupança', value: insights?.savingsCapacity3m != null ? fmtBRL(insights.savingsCapacity3m) : '—',
+      sub: 'Renda − despesa (3m)', tone: 'success', icon: I.chart, mono: true,
     },
   ];
 
@@ -297,7 +292,7 @@ function ResumoVisual({ cliente, insights }) {
         <StepNumber n={2} />
         <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Resumo visual</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1.4fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1.4fr', gap: 12 }}>
         {kpis.map((k, i) => {
           const t = tones[k.tone] ?? tones.blue;
           return (
@@ -328,23 +323,23 @@ function ResumoVisual({ cliente, insights }) {
         {/* Recomendação card */}
         <div className="lz-card" style={{
           padding: '14px 16px',
-          background: `linear-gradient(135deg, ${TOKENS.successSoft} 0%, #fff 100%)`,
-          border: `1px solid ${TOKENS.success}33`,
+          background: `linear-gradient(135deg, ${cliente.fontes > 0 ? TOKENS.successSoft : TOKENS.warningSoft} 0%, #fff 100%)`,
+          border: `1px solid ${cliente.fontes > 0 ? TOKENS.success : TOKENS.warning}33`,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <div style={{
-              width: 26, height: 26, borderRadius: 7, background: TOKENS.success,
+              width: 26, height: 26, borderRadius: 7, background: cliente.fontes > 0 ? TOKENS.success : TOKENS.warning,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <Icon d={I.shieldCheck} size={13} stroke="#fff" strokeWidth={2} />
+              <Icon d={cliente.fontes > 0 ? I.shieldCheck : I.alert} size={13} stroke="#fff" strokeWidth={2} />
             </div>
             <span style={{ fontSize: 11, color: TOKENS.textMuted, fontWeight: 500 }}>Recomendação</span>
           </div>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: TOKENS.success, lineHeight: 1.3 }}>
-            Aprovar comprovação de renda
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: cliente.fontes > 0 ? TOKENS.success : TOKENS.warning, lineHeight: 1.3 }}>
+            {cliente.fontes > 0 ? 'Aprovar comprovação de renda' : 'Solicitar complemento de renda'}
           </div>
           <div style={{ fontSize: 10.5, color: TOKENS.textMuted, marginTop: 5 }}>
-            Baseado nas evidências analisadas
+            {cliente.fontes > 0 ? 'Renda recorrente comprovada' : 'Sem renda recorrente no período'}
           </div>
         </div>
       </div>
@@ -471,11 +466,10 @@ function IncomeChart({ data }) {
 // ───────── 4. Explicação para o operador ─────────
 function ExplicacaoOperador({ cliente, insights }) {
   const rows = [
-    { l: 'Renda declarada',   v: fmtBRL(cliente.rendaDeclarada),  mono: true, color: TOKENS.text },
-    { l: 'Renda verificada',  v: fmtBRL(cliente.rendaVerificada), mono: true, color: TOKENS.primary },
-    { l: 'Diferença',         v: fmtBRL(cliente.diferenca),       mono: true, color: TOKENS.textMuted },
-    { l: 'Débito/Renda',      v: insights?.debtToIncomeRatio ? `${(parseFloat(insights.debtToIncomeRatio) * 100).toFixed(1)}%` : '—', mono: true, color: TOKENS.warning },
-    { l: 'Score de saúde',    v: insights?.healthScore ? `${Math.round(insights.healthScore)}/100` : '—', mono: true, color: TOKENS.success },
+    { l: 'Renda verificada (3m)', v: fmtBRL(cliente.rendaVerificada), mono: true, color: TOKENS.primary },
+    { l: 'Renda verificada (6m)', v: fmtBRL(cliente.rendaDeclarada),  mono: true, color: TOKENS.text },
+    { l: 'Débito/Renda',          v: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—', mono: true, color: TOKENS.warning },
+    { l: 'Capacidade de poupança', v: insights?.savingsCapacity3m != null ? fmtBRL(insights.savingsCapacity3m) : '—', mono: true, color: TOKENS.success },
   ];
 
   return (
@@ -514,10 +508,9 @@ function ExplicacaoOperador({ cliente, insights }) {
               <Icon d={I.info} size={16} stroke={TOKENS.primary} strokeWidth={1.8} />
             </div>
             <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.7, textWrap: 'pretty' }}>
-              Identificamos {cliente.fontes > 0 ? 'fontes de renda recorrente' : 'sem renda detectada'} com análise de Open Finance.
-              A renda verificada de <strong>{fmtBRL(cliente.rendaVerificada)}</strong> nos últimos 3 meses está
-              comparada à média de 12 meses de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>.
-              O score de saúde financeira é de <strong>{insights?.healthScore ? Math.round(insights.healthScore) : '—'}%</strong>.
+              {cliente.fontes > 0
+                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A renda verificada é de <strong>{fmtBRL(cliente.rendaVerificada)}</strong>/mês (média 3 meses), com média de 6 meses de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>.</>
+                : <>Não identificamos <strong>renda recorrente</strong> que comprove renda nos créditos do Open Finance (nenhum pagador com repetição mensal estável no período). A composição detalhada lista os créditos classificados.</>}
             </p>
           </div>
         </div>
@@ -528,9 +521,9 @@ function ExplicacaoOperador({ cliente, insights }) {
 
 // ───────── 5. Decisão sugerida ─────────
 function DecisaoSugerida({ cliente, insights }) {
-  const healthScore = insights?.healthScore ?? 0;
-  const recomendacao = healthScore > 75 ? 'Aprovar comprovação' : healthScore > 50 ? 'Solicitar complemento' : 'Rever manual';
-  const tone = healthScore > 75 ? 'success' : healthScore > 50 ? 'warning' : 'danger';
+  const aprovado = cliente.fontes > 0;
+  const recomendacao = aprovado ? 'Aprovar comprovação' : 'Solicitar complemento';
+  const tone = aprovado ? 'success' : 'warning';
 
   return (
     <div>
@@ -559,11 +552,9 @@ function DecisaoSugerida({ cliente, insights }) {
                   {recomendacao}
                 </div>
                 <p style={{ margin: 0, fontSize: 12.5, color: TOKENS.text, lineHeight: 1.55 }}>
-                  Score de saúde: <strong>{Math.round(healthScore)}%</strong>. {
-                    healthScore > 75 ? 'As evidências indicam boa saúde financeira.' :
-                    healthScore > 50 ? 'Alguns pontos precisam de clarificação.' :
-                    'Recomenda-se análise manual.'
-                  }
+                  {aprovado
+                    ? <>Renda recorrente comprovada de <strong>{fmtBRL(cliente.rendaVerificada)}</strong>/mês. As evidências do Open Finance sustentam a comprovação automatizada.</>
+                    : <>Sem renda recorrente comprovável no período. Recomenda-se solicitar complemento ou revisar a composição detalhada.</>}
                 </p>
               </div>
             </div>
@@ -590,14 +581,14 @@ function DecisaoSugerida({ cliente, insights }) {
             </button>
           </div>
 
-          {healthScore < 50 && (
+          {!aprovado && (
             <div style={{ textAlign: 'center' }}>
               <a href="#" className="lz-link" style={{
                 fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5,
                 color: TOKENS.warning,
               }}>
                 <Icon d={I.alert} size={13} stroke={TOKENS.warning} strokeWidth={1.8} />
-                Risco detectado - revisar
+                Renda não comprovada - revisar
               </a>
             </div>
           )}
@@ -613,14 +604,13 @@ function DecisaoSugerida({ cliente, insights }) {
               { l: 'Email',             v: cliente.email },
               { l: 'CPF',               v: cliente.cpf, mono: true },
               { l: 'Status',            v: cliente.status },
-              { l: 'Score de saúde',    v: `${Math.round(healthScore)}/100`, mono: true },
               { l: 'Renda verificada',  v: fmtBRL(cliente.rendaVerificada), mono: true },
-              { l: 'Débito/Renda',      v: insights?.debtToIncomeRatio ? `${(parseFloat(insights.debtToIncomeRatio) * 100).toFixed(1)}%` : '—', mono: true },
-            ].map((f, i) => (
+              { l: 'Débito/Renda',      v: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—', mono: true },
+            ].map((f, i, arr) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
                 gap: 12, paddingBottom: 10,
-                borderBottom: i < 5 ? `1px solid ${TOKENS.border}` : 'none',
+                borderBottom: i < arr.length - 1 ? `1px solid ${TOKENS.border}` : 'none',
               }}>
                 <span style={{ fontSize: 12, color: TOKENS.textMuted, flexShrink: 0 }}>{f.l}</span>
                 <span className={f.mono ? 'num' : ''} style={{ fontSize: 12.5, fontWeight: 500, color: TOKENS.text, textAlign: 'right' }}>
