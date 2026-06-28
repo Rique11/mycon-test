@@ -422,9 +422,17 @@ function IncomeChart({ data }) {
   const pad = { top: 24, right: 16, bottom: 36, left: 52 };
   const cW = W - pad.left - pad.right;
   const cH = H - pad.top - pad.bottom;
-  const maxV = 9000;
+  const rawMax = Math.max(...data.map((d) => d.v), 0);
+  const niceCeil = (x) => {
+    if (x <= 0) return 3000;
+    const pow = Math.pow(10, Math.floor(Math.log10(x)));
+    const n = x / pow;
+    const mult = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+    return mult * pow;
+  };
+  const maxV = niceCeil(rawMax);
   const barW = (cW / data.length) * 0.5;
-  const yLines = [0, 3000, 6000, 9000];
+  const yLines = [0, maxV / 4, maxV / 2, (3 * maxV) / 4, maxV];
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible' }}>
@@ -436,7 +444,7 @@ function IncomeChart({ data }) {
             <line x1={pad.left} y1={y} x2={W - pad.right} y2={y}
               stroke={TOKENS.border} strokeWidth={1} strokeDasharray={v === 0 ? 'none' : '3 3'} />
             <text x={pad.left - 6} y={y + 4} textAnchor="end" fontSize={9.5} fill={TOKENS.textMuted}>
-              {v === 0 ? 'R$ 0' : `R$ ${v / 1000}k`}
+              {v === 0 ? 'R$ 0' : `R$ ${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`}
             </text>
           </g>
         );
@@ -448,7 +456,7 @@ function IncomeChart({ data }) {
         const slotW = cW / data.length;
         const x = pad.left + slotW * i + (slotW - barW) / 2;
         const y = pad.top + cH - barH;
-        const label = `R$ ${(d.v / 1000).toFixed(2).replace('.', ',')}k`;
+        const label = `R$ ${(d.v / 1000).toFixed(2).replace('.', ',')} mil`;
         return (
           <g key={d.m}>
             <rect x={x} y={y} width={barW} height={barH} rx={3}
