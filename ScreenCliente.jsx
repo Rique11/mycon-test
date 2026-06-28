@@ -112,10 +112,13 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
     email: client.email || '—',
   };
 
-  const mesesRenda = (insights.history || []).map(h => ({
-    m: new Date(h.snapshotDate).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-    v: parseFloat(h.avgMonthlyIncome3m ?? 0),
-  })).slice(-6);
+  const mesesRenda = (insights.history || []).map(h => {
+    const [y, mo] = String(h.snapshotDate).slice(0, 7).split('-').map(Number);
+    return {
+      m: new Date(y, (mo || 1) - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      v: parseFloat(h.avgMonthlyIncome3m ?? 0),
+    };
+  }).slice(-6);
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
