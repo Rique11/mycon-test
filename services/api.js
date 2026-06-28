@@ -191,4 +191,10 @@ export const clientsApi = {
       `/api/v1/clients/${id}/category-breakdown`,
       { query: params },
     ),
+
+  getIncomeComposition: (id, params) =>
+    request(
+      `/api/v1/clients/${id}/income-composition`,
+      { query: params },
+    ),
 };

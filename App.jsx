@@ -23,6 +23,6 @@ export default function App() {
   }
 
   return tela === 'composicao'
-    ? <ScreenComposicao onVoltar={() => setTela('cliente')} />
+    ? <ScreenComposicao clientId={selectedClientId} onVoltar={() => setTela('cliente')} />
     : <ScreenCliente clientId={selectedClientId} onVoltar={() => setSelectedClientId(null)} onVerComposicao={() => setTela('composicao')} />;
 }

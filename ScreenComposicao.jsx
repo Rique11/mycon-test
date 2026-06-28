@@ -1,5 +1,6 @@
 // Tela de composição da renda verificada: resumo, tabela mensal, detalhamento de
-// créditos por mês, critérios e leitura operacional. Apresentação na identidade Lizard.
+// créditos por mês, critérios e leitura operacional. Consome o endpoint
+// /clients/{id}/income-composition; apresentação na identidade Lizard.
 
 import React from 'react';
 import { TOKENS, I } from './tokens.js';
@@ -7,24 +8,147 @@ import Icon from './components/Icon.jsx';
 import Badge from './components/Badge.jsx';
 import Card from './components/Card.jsx';
 import StepNumber from './components/StepNumber.jsx';
-import Avatar from './components/Avatar.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import { useIncomeComposition } from './hooks/useIncomeComposition.ts';
+import { useAuth } from './hooks/useAuth.ts';
+
+// ─── Helpers de formatação e mapeamento backend → UI ────────────────────────
+
+const MESES_CURTO = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MESES_LONGO = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+function num(v) {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function fmt(v) {
+  const n = num(v);
+  if (n === 0) return 'R$ 0,00';
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function ymLabels(ym) {
+  const [y, m] = String(ym).split('-').map(Number);
+  const i = (m || 1) - 1;
+  return { label: `${MESES_CURTO[i]}/${String(y).slice(-2)}`, long: `${MESES_LONGO[i]}/${y}` };
+}
+
+function confTone(conf) {
+  if (conf === 'Alta') return 'success';
+  if (conf === 'Média' || conf === 'Media') return 'warning';
+  return 'danger';
+}
+
+const CLS_KEY = { REC: 'rec', PIX: 'pix', ENT: 'ent', NREC: 'nrec', ATIP: 'atip' };
+
+function mapMonth(mo) {
+  const { label, long } = ymLabels(mo.yearMonth);
+  return {
+    id: mo.yearMonth, label, long,
+    rec: num(mo.recurring), pix: num(mo.pixRecurring), ent: num(mo.betweenAccounts),
+    nrec: num(mo.nonRecurring), atip: num(mo.atypical),
+    total: num(mo.totalCredits), val: num(mo.validatedIncome),
+    conf: mo.confidence || 'Baixa',
+  };
+}
+
+const GROUP_ORDER = [
+  ['rec', 'A. Receita recorrente mensal'],
+  ['pix', 'B. PIX recorrente validável'],
+  ['ent', 'C. Transferências entre contas'],
+  ['nrec', 'D. Entradas não recorrentes'],
+  ['atip', 'E. Créditos atípicos / excluídos'],
+];
+
+function groupDetail(lines) {
+  const groups = {};
+  GROUP_ORDER.forEach(([key, title]) => { groups[key] = { title, items: [] }; });
+  (lines || []).forEach((l) => {
+    const key = CLS_KEY[l.classification] || 'nrec';
+    groups[key].items.push({
+      d: l.date, desc: l.description || '—', inst: l.personType || '—',
+      val: num(l.amount), cls: key, cons: !!l.considered, obs: '',
+    });
+  });
+  return groups;
+}
 
 // ─── Tela: Composição da renda verificada ───────────────────────────────────
 
-export default function ScreenComposicao({ onVoltar }) {
+export default function ScreenComposicao({ clientId, onVoltar }) {
+  const { logout } = useAuth();
+  const { data, loading, error, retry } = useIncomeComposition(clientId);
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
+        <Sidebar onLogout={logout} />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.text }}>Carregando composição da renda...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
+        <Sidebar onLogout={logout} />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ maxWidth: 360, textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.danger, marginBottom: 12 }}>
+              Erro ao carregar composição
+            </div>
+            <p style={{ fontSize: 14, color: TOKENS.text, marginBottom: 20 }}>{error.message}</p>
+            <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}>
+              <button onClick={retry} className="lz-btn-primary" style={{ padding: '10px 16px', fontSize: 13 }}>
+                Tentar novamente
+              </button>
+              <button onClick={onVoltar} className="lz-btn-ghost" style={{ padding: '10px 16px', fontSize: 13, color: TOKENS.text }}>
+                Voltar para análise
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const meses = (data?.months || []).map(mapMonth);
+  const detailByMonth = {};
+  (data?.detail || []).forEach((l) => {
+    (detailByMonth[l.yearMonth] = detailByMonth[l.yearMonth] || []).push(l);
+  });
+  const summary = data?.summary || { validatedIncomeAvg: 0, monthsAnalyzed: meses.length, recurringMonths: 0, confidence: 'Baixa' };
+
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-      <Sidebar />
+      <Sidebar onLogout={logout} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'auto' }}>
         <CompHeader onVoltar={onVoltar} />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '0 32px 40px' }}>
-          <ResumoComposicao />
-          <CompMensal />
-          <DetalhamentoMeses />
-          <CriterioCard />
-          <LeituraOperacional onVoltar={onVoltar} />
-        </div>
+        {meses.length === 0 ? (
+          <div style={{ padding: '48px 32px' }}>
+            <Card>
+              <div style={{ textAlign: 'center', padding: '32px 16px', color: TOKENS.textMuted }}>
+                <div style={{ fontSize: 16, fontWeight: 600, color: TOKENS.text, marginBottom: 6 }}>
+                  Sem créditos para compor a renda
+                </div>
+                <p style={{ fontSize: 13, margin: 0 }}>
+                  Este cliente ainda não possui transações de crédito sincronizadas via Open Finance no período.
+                </p>
+              </div>
+            </Card>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '0 32px 40px' }}>
+            <ResumoComposicao meses={meses} summary={summary} />
+            <CompMensal meses={meses} avg={summary.validatedIncomeAvg} />
+            <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} />
+            <CriterioCard />
+            <LeituraOperacional onVoltar={onVoltar} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -44,7 +168,7 @@ function CompHeader({ onVoltar }) {
           color: TOKENS.textMuted, fontSize: 12.5, textDecoration: 'none', marginBottom: 8,
         }}>
           <Icon d={I.chevLeft} size={14} stroke={TOKENS.textMuted} />
-          Cliente contemplado · Larissa Teixeira
+          Voltar para análise do cliente
         </a>
         <h1 style={{
           margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: -0.6, color: TOKENS.title,
@@ -54,7 +178,7 @@ function CompHeader({ onVoltar }) {
           <Badge tone="blue" size="sm" dot>Open Finance</Badge>
         </h1>
         <p style={{ margin: '6px 0 0', fontSize: 13.5, color: TOKENS.textMuted }}>
-          Classificação dos créditos identificados via Open Finance nos últimos 6 meses.
+          Classificação dos créditos identificados via Open Finance no período analisado.
         </p>
       </div>
 
@@ -73,84 +197,23 @@ function CompHeader({ onVoltar }) {
           <Icon d={I.doc} size={15} stroke={TOKENS.danger} strokeWidth={1.8} />
           Exportar PDF
         </button>
-        <div style={{ width: 1, height: 24, background: TOKENS.border, margin: '0 4px' }} />
-        <button className="lz-btn-ghost" title="Fechar" style={{
-          width: 36, height: 36, borderRadius: 10, display: 'inline-flex',
-          alignItems: 'center', justifyContent: 'center', padding: 0,
-        }}>
-          <Icon d={I.x} size={16} stroke={TOKENS.textMuted} strokeWidth={1.8} />
-        </button>
       </div>
     </div>
   );
 }
 
-// ───────── 1. Contexto do cliente ─────────
-function ContextoCliente() {
-  const fields = [
-    { l: 'Grupo / Cota', v: '126 / 33', mono: true },
-    { l: 'Produto', v: 'Imóvel' },
-    { l: 'Valor total', v: 'R$ 190.000,00', mono: true },
-    { l: 'Parcela mensal', v: 'R$ 2.050,00', mono: true },
-    { l: 'Data da análise', v: '22/05/2025 09:41', mono: true },
-  ];
-  return (
-    <Card>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <StepNumber n={1} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Contexto do cliente</span>
-      </div>
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1.4fr repeat(5, 1fr) 1.1fr', gap: 20,
-        alignItems: 'center', padding: '14px 18px',
-        background: TOKENS.panel, borderRadius: 10, border: `1px solid ${TOKENS.border}`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Avatar name="Larissa Teixeira" size={42} tone="brand" />
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 14.5, fontWeight: 600, color: TOKENS.text }}>Larissa Teixeira</span>
-            </div>
-            <div className="num" style={{ fontSize: 11.5, color: TOKENS.textMuted, marginTop: 2 }}>
-              CPF 000.***.***-10
-            </div>
-          </div>
-        </div>
-        {fields.map((f, i) => (
-          <div key={i}>
-            <div style={{ fontSize: 10.5, color: TOKENS.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>
-              {f.l}
-            </div>
-            <div className={f.mono ? 'num' : ''} style={{ fontSize: 13, fontWeight: 500, color: TOKENS.text }}>
-              {f.v}
-            </div>
-          </div>
-        ))}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-          <Badge tone="success" size="sm" dot>Análise concluída</Badge>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 14, height: 14, borderRadius: 7, background: TOKENS.successSoft, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon d={I.check} size={9} stroke={TOKENS.success} strokeWidth={3} />
-            </div>
-            <span style={{ fontSize: 12, color: TOKENS.text, fontWeight: 500 }}>Open Finance conectado</span>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ───────── 2. Resumo da composição (8 KPIs) ─────────
-function ResumoComposicao() {
+// ───────── 1. Resumo da composição ─────────
+function ResumoComposicao({ meses, summary }) {
+  const sum = (k) => meses.reduce((a, m) => a + m[k], 0);
   const items = [
-    { l: 'Renda verificada média', v: 'R$ 6.450,00', s: 'Média mensal (6m)', icon: I.wallet, tone: 'blue', mono: true },
-    { l: 'Receita recorrente', v: '6 / 6', s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true },
-    { l: 'Confiança da análise', v: 'Alta', s: 'Padrão consistente', icon: I.shieldCheck, tone: 'success', isBadge: true, badgeTone: 'success' },
-    { l: 'Créditos atípicos', v: 'R$ 420,00', s: 'Removidos da média', icon: I.alert, tone: 'danger', mono: true },
-    { l: 'Entre contas', v: 'R$ 8.900,00', s: 'No período (6m)', icon: I.link, tone: 'purple', mono: true },
-    { l: 'Não recorrentes', v: 'R$ 2.150,00', s: 'No período (6m)', icon: I.history, tone: 'warning', mono: true },
-    { l: 'PIX recorrente validável', v: 'R$ 0,00', s: 'Sem padrão validável', icon: I.send, tone: 'blue', mono: true },
-    { l: 'Parcela / renda', v: '31,8%', s: 'R$ 2.050 sobre R$ 6.450', icon: I.chart, tone: 'warning', mono: true },
+    { l: 'Renda verificada média', v: fmt(summary.validatedIncomeAvg), s: `Média mensal (${summary.monthsAnalyzed}m)`, icon: I.wallet, tone: 'blue', mono: true },
+    { l: 'Receita recorrente', v: `${summary.recurringMonths} / ${summary.monthsAnalyzed}`, s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true },
+    { l: 'Confiança da análise', v: summary.confidence, s: 'Padrão dos créditos', icon: I.shieldCheck, tone: confTone(summary.confidence), isBadge: true, badgeTone: confTone(summary.confidence) },
+    { l: 'Créditos atípicos', v: fmt(sum('atip')), s: 'Removidos da média', icon: I.alert, tone: 'danger', mono: true },
+    { l: 'Entre contas', v: fmt(sum('ent')), s: 'No período', icon: I.link, tone: 'purple', mono: true },
+    { l: 'Não recorrentes', v: fmt(sum('nrec')), s: 'No período', icon: I.history, tone: 'warning', mono: true },
+    { l: 'PIX recorrente validável', v: fmt(sum('pix')), s: 'No período', icon: I.send, tone: 'blue', mono: true },
+    { l: 'Renda validada (total)', v: fmt(sum('val')), s: 'Soma do período', icon: I.chart, tone: 'success', mono: true },
   ];
   const tonesMap = {
     blue: { bg: TOKENS.primarySoft, fg: TOKENS.primary },
@@ -164,11 +227,11 @@ function ResumoComposicao() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <StepNumber n={1} />
         <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Resumo da composição</span>
-        <span style={{ fontSize: 12, color: TOKENS.textMuted }}>(8 indicadores · 6 meses)</span>
+        <span style={{ fontSize: 12, color: TOKENS.textMuted }}>(8 indicadores · {summary.monthsAnalyzed} meses)</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
         {items.map((f, i) => {
-          const t = tonesMap[f.tone];
+          const t = tonesMap[f.tone] ?? tonesMap.blue;
           return (
             <div key={i} className="lz-card" style={{ padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 10 }}>
@@ -198,39 +261,19 @@ function ResumoComposicao() {
   );
 }
 
-// ───────── 3. Composição mensal da renda (tabela ampla) ─────────
-const MESES = [
-  { id: 'mar', label: 'Mar/25', long: 'Março/2025',
-    rec: 6200, pix: 0, ent: 1500, nrec: 250, atip: 0, total: 7950, val: 6200, conf: 'Alta' },
-  { id: 'abr', label: 'Abr/25', long: 'Abril/2025',
-    rec: 6280, pix: 0, ent: 1450, nrec: 380, atip: 300, total: 8410, val: 6280, conf: 'Alta' },
-  { id: 'mai', label: 'Mai/25', long: 'Maio/2025',
-    rec: 6600, pix: 0, ent: 1500, nrec: 420, atip: 0, total: 8520, val: 6600, conf: 'Alta' },
-  { id: 'jun', label: 'Jun/25', long: 'Junho/2025',
-    rec: 6500, pix: 0, ent: 1450, nrec: 320, atip: 120, total: 8390, val: 6500, conf: 'Alta' },
-  { id: 'jul', label: 'Jul/25', long: 'Julho/2025',
-    rec: 6470, pix: 0, ent: 1500, nrec: 510, atip: 0, total: 8480, val: 6470, conf: 'Alta' },
-  { id: 'ago', label: 'Ago/25', long: 'Agosto/2025',
-    rec: 6650, pix: 0, ent: 1500, nrec: 270, atip: 0, total: 8420, val: 6650, conf: 'Alta' },
-];
-
-function fmt(v) {
-  if (v === 0) return 'R$ 0,00';
-  return 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function CompMensal() {
+// ───────── 2. Composição mensal da renda (tabela ampla) ─────────
+function CompMensal({ meses, avg }) {
   const cols = [
-    { id: 'mes', label: 'Mês', w: 92, align: 'left' },
-    { id: 'rec', label: 'Receita recorrente', w: 150, align: 'right' },
-    { id: 'pix', label: 'PIX recorrente', w: 130, align: 'right' },
-    { id: 'ent', label: 'Entre contas', w: 130, align: 'right' },
-    { id: 'nrec', label: 'Não recorrentes', w: 140, align: 'right' },
-    { id: 'atip', label: 'Atípicos', w: 110, align: 'right' },
-    { id: 'total', label: 'Total de entradas', w: 150, align: 'right' },
-    { id: 'val', label: 'Renda validada', w: 150, align: 'right' },
-    { id: 'conf', label: 'Confiança', w: 100, align: 'center' },
-    { id: 'ver', label: '', w: 110, align: 'right' },
+    { id: 'mes', label: 'Mês', align: 'left' },
+    { id: 'rec', label: 'Receita recorrente', align: 'right' },
+    { id: 'pix', label: 'PIX recorrente', align: 'right' },
+    { id: 'ent', label: 'Entre contas', align: 'right' },
+    { id: 'nrec', label: 'Não recorrentes', align: 'right' },
+    { id: 'atip', label: 'Atípicos', align: 'right' },
+    { id: 'total', label: 'Total de entradas', align: 'right' },
+    { id: 'val', label: 'Renda validada', align: 'right' },
+    { id: 'conf', label: 'Confiança', align: 'center' },
+    { id: 'ver', label: '', align: 'right' },
   ];
   return (
     <div>
@@ -239,8 +282,7 @@ function CompMensal() {
         <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Composição mensal da renda</span>
       </div>
       <p style={{ margin: '0 0 12px 32px', fontSize: 12.5, color: TOKENS.textMuted, maxWidth: 760 }}>
-        A tabela abaixo mostra a composição dos créditos identificados em cada mês e o valor efetivamente
-        considerado para a renda validada.
+        Composição dos créditos identificados em cada mês e o valor efetivamente considerado para a renda validada.
       </p>
       <Card padding={0}>
         <div style={{ overflowX: 'auto' }}>
@@ -257,7 +299,7 @@ function CompMensal() {
               </tr>
             </thead>
             <tbody>
-              {MESES.map((m, i) => (
+              {meses.map((m) => (
                 <tr key={m.id} className="lz-row-hover" style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
                   <td style={{ padding: '12px 14px', fontWeight: 600, color: TOKENS.text }}>{m.label}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.success, fontWeight: 600 }}>{fmt(m.rec)}</td>
@@ -268,7 +310,7 @@ function CompMensal() {
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.total)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.val)}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                    <Badge tone="success" size="sm" dot>{m.conf}</Badge>
+                    <Badge tone={confTone(m.conf)} size="sm" dot>{m.conf}</Badge>
                   </td>
                   <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                     <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -279,19 +321,19 @@ function CompMensal() {
               ))}
               {/* Totals row */}
               <tr style={{ background: TOKENS.panel }}>
-                <td style={{ padding: '12px 14px', fontWeight: 700, color: TOKENS.text, fontSize: 12 }}>Total 6m</td>
+                <td style={{ padding: '12px 14px', fontWeight: 700, color: TOKENS.text, fontSize: 12 }}>Total {meses.length}m</td>
                 {['rec', 'pix', 'ent', 'nrec', 'atip', 'total', 'val'].map((k) => {
-                  const sum = MESES.reduce((a, m) => a + m[k], 0);
+                  const total = meses.reduce((a, m) => a + m[k], 0);
                   return (
                     <td key={k} className="num" style={{
                       padding: '12px 14px', textAlign: 'right', fontWeight: 700,
                       color: k === 'val' ? TOKENS.primaryFg : TOKENS.text,
                       background: k === 'val' ? TOKENS.primarySoft : 'transparent',
-                    }}>{fmt(sum)}</td>
+                    }}>{fmt(total)}</td>
                   );
                 })}
                 <td colSpan={2} style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted, fontSize: 11.5 }}>
-                  Média validada: <span className="num" style={{ color: TOKENS.text, fontWeight: 600 }}>R$ 6.450,00</span>
+                  Média validada: <span className="num" style={{ color: TOKENS.text, fontWeight: 600 }}>{fmt(avg)}</span>
                 </td>
               </tr>
             </tbody>
@@ -302,7 +344,7 @@ function CompMensal() {
   );
 }
 
-// ───────── 4. Detalhamento dos créditos por mês ─────────
+// ───────── 3. Detalhamento dos créditos por mês ─────────
 const CLASSIF = {
   rec: { label: 'Receita recorrente mensal', tone: 'success' },
   pix: { label: 'PIX recorrente validável', tone: 'blue' },
@@ -311,32 +353,13 @@ const CLASSIF = {
   atip: { label: 'Crédito atípico / excluído', tone: 'danger' },
 };
 
-// Build per-month detail data
-function buildMesDetail(m) {
-  const dd = (d) => `${String(d).padStart(2,'0')}/${m.id === 'mar' ? '03' : m.id === 'abr' ? '04' : m.id === 'mai' ? '05' : m.id === 'jun' ? '06' : m.id === 'jul' ? '07' : '08'}/2025`;
-  const groups = {
-    rec: { title: 'A. Receita recorrente mensal', items: [
-      { d: dd(5), desc: 'Salário Empresa ABC', inst: 'Itaú', val: m.rec, cls: 'rec', cons: true, obs: 'Crédito com padrão mensal' },
-    ] },
-    pix: { title: 'B. PIX recorrente validável', items: m.pix > 0 ? [
-      { d: dd(10), desc: 'PIX recebido — origem fixa', inst: 'Nubank', val: m.pix, cls: 'pix', cons: true, obs: 'Padrão consistente' },
-    ] : [] },
-    ent: { title: 'C. Transferências entre contas', items: [
-      { d: dd(12), desc: 'Transferência mesma titularidade', inst: 'Nubank', val: Math.round(m.ent * 0.6), cls: 'ent', cons: false, obs: 'Movimentação interna' },
-      { d: dd(22), desc: 'TED entre contas próprias', inst: 'Itaú', val: m.ent - Math.round(m.ent * 0.6), cls: 'ent', cons: false, obs: 'Movimentação interna' },
-    ] },
-    nrec: { title: 'D. Entradas não recorrentes', items: m.nrec > 0 ? [
-      { d: dd(18), desc: 'PIX recebido', inst: 'Terceiro', val: m.nrec, cls: 'nrec', cons: false, obs: 'Sem padrão recorrente' },
-    ] : [] },
-    atip: { title: 'E. Créditos atípicos / excluídos', items: m.atip > 0 ? [
-      { d: dd(21), desc: 'Crédito extraordinário', inst: 'Banco Inter', val: m.atip, cls: 'atip', cons: false, obs: 'Valor fora do padrão mensal' },
-    ] : [] },
-  };
-  return groups;
-}
-
-function DetalhamentoMeses() {
-  const [open, setOpen] = React.useState({ mar: true, abr: false, mai: false, jun: false, jul: false, ago: false });
+function DetalhamentoMeses({ meses, detailByMonth }) {
+  const [open, setOpen] = React.useState(() => {
+    const init = {};
+    meses.forEach((m, i) => { init[m.id] = i === 0; });
+    return init;
+  });
+  const allOpen = meses.length > 0 && meses.every((m) => open[m.id]);
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -345,25 +368,30 @@ function DetalhamentoMeses() {
         <span style={{ fontSize: 12, color: TOKENS.textMuted }}>(clique em um mês para expandir)</span>
         <div style={{ flex: 1 }} />
         <button className="lz-btn-ghost" onClick={() => {
-          const allOpen = Object.values(open).every(Boolean);
-          const next = {}; MESES.forEach((m) => next[m.id] = !allOpen);
+          const next = {}; meses.forEach((m) => { next[m.id] = !allOpen; });
           setOpen(next);
         }} style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500 }}>
-          {Object.values(open).every(Boolean) ? 'Recolher todos' : 'Expandir todos'}
+          {allOpen ? 'Recolher todos' : 'Expandir todos'}
         </button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {MESES.map((m) => (
-          <MesDetail key={m.id} mes={m} open={open[m.id]} onToggle={() => setOpen({ ...open, [m.id]: !open[m.id] })} />
+        {meses.map((m) => (
+          <MesDetail
+            key={m.id}
+            mes={m}
+            lines={detailByMonth[m.id]}
+            open={open[m.id]}
+            onToggle={() => setOpen({ ...open, [m.id]: !open[m.id] })}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function MesDetail({ mes, open, onToggle }) {
-  const groups = buildMesDetail(mes);
+function MesDetail({ mes, lines, open, onToggle }) {
+  const groups = groupDetail(lines);
   return (
     <div className="lz-card" id={mes.id} style={{ overflow: 'hidden' }}>
       <button onClick={onToggle} style={{
@@ -386,7 +414,7 @@ function MesDetail({ mes, open, onToggle }) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Badge tone="success" size="sm" dot>Confiança {mes.conf}</Badge>
+          <Badge tone={confTone(mes.conf)} size="sm" dot>Confiança {mes.conf}</Badge>
         </div>
       </button>
 
@@ -419,7 +447,7 @@ function DetailGroup({ title, items }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: TOKENS.panel, borderBottom: `1px solid ${TOKENS.border}` }}>
-                {['Data', 'Descrição', 'Instituição / origem', 'Valor', 'Classificação', 'Considerado', 'Observação'].map((h, i) => (
+                {['Data', 'Descrição', 'Origem', 'Valor', 'Classificação', 'Considerado'].map((h, i) => (
                   <th key={i} style={{
                     padding: '9px 14px', textAlign: i === 3 ? 'right' : i === 5 ? 'center' : 'left',
                     fontWeight: 600, color: TOKENS.textMuted, fontSize: 10.5,
@@ -449,7 +477,6 @@ function DetailGroup({ title, items }) {
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '10px 14px', color: TOKENS.textMuted, fontSize: 12 }}>{it.obs}</td>
                   </tr>
                 );
               })}
@@ -461,7 +488,7 @@ function DetailGroup({ title, items }) {
   );
 }
 
-// ───────── 5. Critério utilizado na composição da renda ─────────
+// ───────── 4. Critério utilizado na composição da renda ─────────
 function CriterioCard() {
   const bullets = [
     { l: 'Receita recorrente mensal', v: 'entra na renda validada', tone: 'success' },
@@ -515,7 +542,7 @@ function CriterioCard() {
   );
 }
 
-// ───────── 6. Leitura operacional ─────────
+// ───────── 5. Leitura operacional ─────────
 function LeituraOperacional({ onVoltar }) {
   return (
     <div>
@@ -538,12 +565,12 @@ function LeituraOperacional({ onVoltar }) {
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13.5, fontWeight: 600, color: TOKENS.text, marginBottom: 6 }}>
-              Composição consistente · pronta para comprovação automatizada
+              Composição calculada a partir dos créditos sincronizados
             </div>
             <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.6, textWrap: 'pretty' }}>
-              A renda validada deste cliente foi calculada a partir dos créditos recorrentes identificados
-              nos últimos 6 meses, com exclusão de transferências internas e entradas atípicas. O histórico
-              apresenta consistência suficiente para suportar a comprovação automatizada de renda.
+              A renda validada foi calculada a partir dos créditos recorrentes identificados no período,
+              com exclusão de transferências internas e entradas atípicas. Revise o detalhamento por mês
+              para auditar cada lançamento considerado.
             </p>
             <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
               <button
@@ -552,13 +579,6 @@ function LeituraOperacional({ onVoltar }) {
                 style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
               >
                 Voltar para análise do cliente
-              </button>
-              <button className="lz-btn-ghost" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
-              }}>
-                <Icon d={I.download} size={14} stroke={TOKENS.text} />
-                Baixar relatório completo
               </button>
             </div>
           </div>
