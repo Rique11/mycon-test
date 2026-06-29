@@ -146,7 +146,7 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
   const mesesRenda = (insights.history || []).map(h => {
     const [y, mo] = String(h.snapshotDate).slice(0, 7).split('-').map(Number);
     return {
-      m: new Date(y, (mo || 1) - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+      m: ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][(mo || 1) - 1] + '/' + String(y).slice(-2),
       v: parseFloat(h.avgMonthlyIncome3m ?? 0),
     };
   }).slice(-12);
@@ -462,8 +462,8 @@ function EvidKpi({ label, value, sub, tone, mono = false, info }) {
 }
 
 function IncomeChart({ data }) {
-  const W = 560, H = 160;
-  const pad = { top: 24, right: 16, bottom: 36, left: 52 };
+  const W = 780, H = 180;
+  const pad = { top: 24, right: 16, bottom: 34, left: 52 };
   const cW = W - pad.left - pad.right;
   const cH = H - pad.top - pad.bottom;
   const rawMax = Math.max(...data.map((d) => d.v), 0);
@@ -500,15 +500,15 @@ function IncomeChart({ data }) {
         const slotW = cW / data.length;
         const x = pad.left + slotW * i + (slotW - barW) / 2;
         const y = pad.top + cH - barH;
-        const label = `R$ ${(d.v / 1000).toFixed(2).replace('.', ',')} mil`;
+        const label = d.v > 0 ? `R$ ${Math.round(d.v / 1000)} mil` : '';
         return (
           <g key={d.m}>
             <rect x={x} y={y} width={barW} height={barH} rx={3}
               fill={TOKENS.primary} opacity={0.85} />
-            <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize={9} fill={TOKENS.textMuted}>
+            <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
               {label}
             </text>
-            <text x={x + barW / 2} y={H - pad.bottom + 14} textAnchor="middle" fontSize={10} fill={TOKENS.textMuted}>
+            <text x={x + barW / 2} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill={TOKENS.textMuted}>
               {d.m}
             </text>
           </g>
