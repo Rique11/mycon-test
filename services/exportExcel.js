@@ -17,7 +17,9 @@ const CLASS_LABEL = {
 
 function num(v) {
   const n = Number(v ?? 0);
-  return Number.isFinite(n) ? n : 0;
+  if (!Number.isFinite(n)) return 0;
+  // Arredonda a 2 casas: valores monetários no Excel sem ruído de mediana (escala 4).
+  return Math.round(n * 100) / 100;
 }
 
 function mesLabel(ym) {
