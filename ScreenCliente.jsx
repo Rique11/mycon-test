@@ -149,7 +149,7 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
       m: new Date(y, (mo || 1) - 1, 1).toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
       v: parseFloat(h.avgMonthlyIncome3m ?? 0),
     };
-  }).slice(-6);
+  }).slice(-12);
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
@@ -297,8 +297,8 @@ function ResumoVisual({ cliente, insights }) {
   const kpis = [
     {
       label: 'Renda verificada', value: fmtBRL(cliente.rendaVerificada),
-      sub: 'Média mensal (3m)', tone: 'blue', icon: I.wallet, mono: true,
-      info: 'Mediana da renda mensal recorrente (créditos de pagadores presentes em ≥4 meses, via Open Finance) nos últimos meses completos.',
+      sub: 'Mediana semestral (6m)', tone: 'blue', icon: I.wallet, mono: true,
+      info: 'Mediana da renda mensal recorrente (pagadores presentes em ≥4 meses, via Open Finance) nos últimos 6 meses completos.',
     },
     {
       label: 'Fonte de renda', value: cliente.fontes > 0 ? 'Detectada' : 'Não detectada',
@@ -397,16 +397,16 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
         <Badge tone="blue" size="sm" dot>agregado · Open Finance</Badge>
       </div>
       <p style={{ margin: '0 0 12px 32px', fontSize: 12.5, color: TOKENS.textMuted }}>
-        Créditos identificados via Open Finance nos últimos 6 meses.
+        Créditos identificados via Open Finance nos últimos 12 meses.
       </p>
       <Card>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
           <EvidKpi label="Salário recorrente" value={cliente.fontes > 0 ? 'Sim' : 'Não'} sub={cliente.fontes > 0 ? 'Depósitos em dia útil' : 'Não detectado'} tone={cliente.fontes > 0 ? 'success' : 'warning'}
             info="Há crédito de pagador recorrente (presente em ≥4 meses) identificado nos lançamentos do Open Finance." />
-          <EvidKpi label="Média 3 meses" value={fmtBRL(cliente.rendaVerificada)} sub="Últimos 3 meses" mono
-            info="Mediana da renda validada nos 3 meses completos mais recentes." />
-          <EvidKpi label="Variação mensal" value={cliente.variacao != null ? `${cliente.variacao}%` : '—'} sub="Coef. de variação" tone="warning" mono
-            info="Coeficiente de variação da renda mensal. Ainda não calculado pelo backend (exibe '—')." />
+          <EvidKpi label="Renda semestral" value={fmtBRL(cliente.rendaVerificada)} sub="Mediana 6 meses" mono
+            info="Mediana da renda mensal validada nos últimos 6 meses completos (semestral)." />
+          <EvidKpi label="Renda anual" value={fmtBRL(cliente.rendaDeclarada)} sub="Mediana 12 meses" tone="blue" mono
+            info="Mediana da renda mensal validada nos últimos 12 meses completos (anual)." />
           <EvidKpi label="Atípicos" value={fmtBRL(cliente.atipicos)} sub="Excluídos da média" tone="neutral" mono
             info="Créditos atípicos (ex.: rendimento/resgate de investimento) que não compõem a renda recorrente." />
         </div>
@@ -419,7 +419,7 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
                 Evolução da renda verificada
               </div>
               <div style={{ fontSize: 11.5, color: TOKENS.textMuted }}>
-                Média mensal · últimos 6 meses
+                Média mensal · últimos 12 meses
               </div>
             </div>
             {onVerComposicao && (
@@ -521,8 +521,8 @@ function IncomeChart({ data }) {
 // ───────── 4. Explicação para o operador ─────────
 function ExplicacaoOperador({ cliente, insights }) {
   const rows = [
-    { l: 'Renda verificada (3m)', v: fmtBRL(cliente.rendaVerificada), mono: true, color: TOKENS.primary },
-    { l: 'Renda verificada (6m)', v: fmtBRL(cliente.rendaDeclarada),  mono: true, color: TOKENS.text },
+    { l: 'Renda verificada (6m · semestral)', v: fmtBRL(cliente.rendaVerificada), mono: true, color: TOKENS.primary },
+    { l: 'Renda verificada (12m · anual)',    v: fmtBRL(cliente.rendaDeclarada),  mono: true, color: TOKENS.text },
     { l: 'Débito/Renda',          v: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—', mono: true, color: TOKENS.warning },
     { l: 'Capacidade de poupança', v: insights?.savingsCapacity3m != null ? fmtBRL(insights.savingsCapacity3m) : '—', mono: true, color: TOKENS.success },
   ];
@@ -564,7 +564,7 @@ function ExplicacaoOperador({ cliente, insights }) {
             </div>
             <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.7, textWrap: 'pretty' }}>
               {cliente.fontes > 0
-                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A renda verificada é de <strong>{fmtBRL(cliente.rendaVerificada)}</strong>/mês (média 3 meses), com média de 6 meses de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>.</>
+                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A renda verificada é de <strong>{fmtBRL(cliente.rendaVerificada)}</strong>/mês (mediana semestral), com mediana anual de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>.</>
                 : <>Não identificamos <strong>renda recorrente</strong> que comprove renda nos créditos do Open Finance (nenhum pagador com repetição mensal estável no período). A composição detalhada lista os créditos classificados.</>}
             </p>
           </div>
