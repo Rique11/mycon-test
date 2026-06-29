@@ -10,7 +10,10 @@ import Card from './components/Card.jsx';
 import StepNumber from './components/StepNumber.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import { useIncomeComposition } from './hooks/useIncomeComposition.ts';
+import { useClientData } from './hooks/useClientData.ts';
 import { useAuth } from './hooks/useAuth.ts';
+import { clientsApi } from './services/api.js';
+import { exportConsolidado } from './services/exportExcel.js';
 
 // ─── Helpers de formatação e mapeamento backend → UI ────────────────────────
 
@@ -79,6 +82,7 @@ function groupDetail(lines) {
 export default function ScreenComposicao({ clientId, onVoltar }) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useIncomeComposition(clientId);
+  const { data: clientData } = useClientData(clientId);
 
   if (loading) {
     return (
@@ -126,7 +130,22 @@ export default function ScreenComposicao({ clientId, onVoltar }) {
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
       <Sidebar onLogout={logout} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'auto' }}>
-        <CompHeader onVoltar={onVoltar} />
+        <CompHeader
+          onVoltar={onVoltar}
+          onExportExcel={async () => {
+            try {
+              const statement = await clientsApi.getStatement(clientId);
+              exportConsolidado({
+                client: clientData?.client,
+                insights: clientData?.insights,
+                income: data,
+                statement,
+              });
+            } catch (e) {
+              console.error('Falha ao exportar dossiê', e);
+            }
+          }}
+        />
         {meses.length === 0 ? (
           <div style={{ padding: '48px 32px' }}>
             <Card>
@@ -155,7 +174,7 @@ export default function ScreenComposicao({ clientId, onVoltar }) {
 }
 
 // ───────── Header (with breadcrumb + export actions) ─────────
-function CompHeader({ onVoltar }) {
+function CompHeader({ onVoltar, onExportExcel }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
@@ -183,7 +202,7 @@ function CompHeader({ onVoltar }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <button className="lz-btn-ghost" style={{
+        <button onClick={onExportExcel} className="lz-btn-ghost" style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: TOKENS.text,
         }}>

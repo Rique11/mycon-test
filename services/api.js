@@ -197,4 +197,10 @@ export const clientsApi = {
       `/api/v1/clients/${id}/income-composition`,
       { query: params },
     ),
+
+  getStatement: (id, params) =>
+    request(
+      `/api/v1/clients/${id}/statement`,
+      { query: params },
+    ),
 };

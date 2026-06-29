@@ -27,6 +27,9 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
   "peerDependencies": {
     "react": ">=18",
     "react-dom": ">=18"
