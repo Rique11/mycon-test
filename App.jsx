@@ -7,22 +7,69 @@ import ScreenCliente from './ScreenCliente.jsx';
 import ScreenComposicao from './ScreenComposicao.jsx';
 import LoginScreen from './screens/LoginScreen.jsx';
 import ClientListScreen from './screens/ClientListScreen.jsx';
+import PocContempladosScreen from './screens/PocContempladosScreen.jsx';
 import { useAuth } from './hooks/useAuth.ts';
 
 export default function App() {
   const { isAuthenticated, logout } = useAuth();
+  const [section, setSection] = React.useState('poc');
   const [tela, setTela] = React.useState('cliente');
   const [selectedClientId, setSelectedClientId] = React.useState(null);
+
+  function handleNavigate(label) {
+    if (label === 'POC Contemplados') {
+      setSection('poc');
+      setSelectedClientId(null);
+      setTela('cliente');
+    }
+
+    if (label === 'Clientes') {
+      setSection('clientes');
+      setSelectedClientId(null);
+      setTela('cliente');
+    }
+  }
 
   if (!isAuthenticated) {
     return <LoginScreen />;
   }
 
-  if (!selectedClientId) {
-    return <ClientListScreen onSelectClient={setSelectedClientId} onLogout={logout} />;
+  if (selectedClientId) {
+    return tela === 'composicao'
+      ? (
+        <ScreenComposicao
+          clientId={selectedClientId}
+          onVoltar={() => setTela('cliente')}
+          onNavigate={handleNavigate}
+        />
+      )
+      : (
+        <ScreenCliente
+          clientId={selectedClientId}
+          onVoltar={() => setSelectedClientId(null)}
+          onVerComposicao={() => setTela('composicao')}
+          onNavigate={handleNavigate}
+          backLabel={section === 'poc' ? 'Voltar para POC' : 'Voltar para clientes'}
+        />
+      );
   }
 
-  return tela === 'composicao'
-    ? <ScreenComposicao clientId={selectedClientId} onVoltar={() => setTela('cliente')} />
-    : <ScreenCliente clientId={selectedClientId} onVoltar={() => setSelectedClientId(null)} onVerComposicao={() => setTela('composicao')} />;
+  if (section === 'clientes') {
+    return (
+      <ClientListScreen
+        onSelectClient={setSelectedClientId}
+        onLogout={logout}
+        activeItem="Clientes"
+        onNavigate={handleNavigate}
+      />
+    );
+  }
+
+  return (
+    <PocContempladosScreen
+      onLogout={logout}
+      onNavigate={handleNavigate}
+      onSelectClient={setSelectedClientId}
+    />
+  );
 }

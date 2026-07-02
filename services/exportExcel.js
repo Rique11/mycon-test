@@ -84,6 +84,82 @@ export function exportExtrato(client, statement) {
   XLSX.writeFile(wb, `extrato-${slug(client?.name)}-${statement?.toYearMonth || ''}.xlsx`);
 }
 
+export function exportExtratoPdf(client, statement) {
+  const rows = statement?.rows || [];
+  const title = `Extrato Open Finance 12m - ${client?.name || 'Cliente'}`;
+  const money = (value) =>
+    value != null ? num(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
+  const htmlRows = rows.map((r) => `
+    <tr>
+      <td>${fmtData(r.date)}</td>
+      <td>${mesLabel(r.yearMonth)}</td>
+      <td>${r.account || ''}</td>
+      <td>${r.history || ''}</td>
+      <td>${r.type || ''}</td>
+      <td class="num">${money(r.inflow)}</td>
+      <td class="num">${money(r.outflow)}</td>
+      <td>${r.origin || 'Open Finance'}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <!doctype html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8" />
+        <title>${title}</title>
+        <style>
+          @page { size: A4 landscape; margin: 14mm; }
+          body { font-family: Inter, Arial, sans-serif; color: #101A33; margin: 0; }
+          h1 { font-size: 20px; margin: 0 0 6px; }
+          .meta { font-size: 12px; color: #5F6F89; margin-bottom: 16px; }
+          table { width: 100%; border-collapse: collapse; font-size: 10px; }
+          th { text-align: left; padding: 7px 8px; border-bottom: 1px solid #DDE5F0; color: #5F6F89; text-transform: uppercase; font-size: 9px; }
+          td { padding: 7px 8px; border-bottom: 1px solid #E4EAF2; vertical-align: top; }
+          .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        </style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        <div class="meta">
+          CPF: ${maskCpf(client?.cpf)} · Período: ${periodo(statement)} · Gerado em ${new Date().toLocaleString('pt-BR')}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Mês</th>
+              <th>Conta</th>
+              <th>Histórico</th>
+              <th>Tipo</th>
+              <th>Entrada</th>
+              <th>Saída</th>
+              <th>Origem</th>
+            </tr>
+          </thead>
+          <tbody>${htmlRows || '<tr><td colspan="8">Sem lançamentos disponíveis.</td></tr>'}</tbody>
+        </table>
+        <script>window.onload = () => { window.print(); };</script>
+      </body>
+    </html>
+  `;
+
+  const popup = window.open('', '_blank');
+  if (!popup) {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `extrato-${slug(client?.name)}-${statement?.toYearMonth || ''}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+    return;
+  }
+  popup.document.open();
+  popup.document.write(html);
+  popup.document.close();
+}
+
 // ── Dossiê consolidado (botão Exportar Excel) ───────────────────────────────
 
 export function exportConsolidado({ client, insights, income, statement }) {

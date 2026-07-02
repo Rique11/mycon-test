@@ -15,8 +15,12 @@
     "ScreenComposicao.jsx",
     "assets",
     "components",
+    "hooks",
     "index.js",
+    "lib",
     "lizard.css",
+    "screens",
+    "services",
     "tokens.js"
   ],
   "sideEffects": [

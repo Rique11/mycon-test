@@ -183,6 +183,24 @@ export const clientsApi = {
 
   getById: (id) => request(`/api/v1/clients/${id}`),
 
+  create: (body) =>
+    request('/api/v1/clients', { method: 'POST', body }),
+
+  getConsentLink: (id) =>
+    request(`/api/v1/clients/${id}/consent-link`),
+
+  getLinks: (id) =>
+    request(`/api/v1/clients/${id}/links`),
+
+  sync: (id) =>
+    request(`/api/v1/clients/${id}/sync`, { method: 'POST' }),
+
+  syncLink: (id, linkId) =>
+    request(`/api/v1/clients/${id}/links/${linkId}/sync`, { method: 'POST' }),
+
+  saveAkropoliLink: (body) =>
+    request('/api/v1/clients/akropoli/link', { method: 'POST', body }),
+
   getInsights: (id) =>
     request(`/api/v1/clients/${id}/insights`),
 

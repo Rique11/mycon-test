@@ -13,7 +13,7 @@ import { useIncomeComposition } from './hooks/useIncomeComposition.ts';
 import { useClientData } from './hooks/useClientData.ts';
 import { useAuth } from './hooks/useAuth.ts';
 import { clientsApi } from './services/api.js';
-import { exportConsolidado } from './services/exportExcel.js';
+import { exportConsolidado, exportExtratoPdf } from './services/exportExcel.js';
 
 // ─── Helpers de formatação e mapeamento backend → UI ────────────────────────
 
@@ -79,7 +79,7 @@ function groupDetail(lines) {
 
 // ─── Tela: Composição da renda verificada ───────────────────────────────────
 
-export default function ScreenComposicao({ clientId, onVoltar }) {
+export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useIncomeComposition(clientId);
   const { data: clientData } = useClientData(clientId);
@@ -87,7 +87,7 @@ export default function ScreenComposicao({ clientId, onVoltar }) {
   if (loading) {
     return (
       <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-        <Sidebar onLogout={logout} />
+        <Sidebar activeItem="Clientes" onNavigate={onNavigate} onLogout={logout} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.text }}>Carregando composição da renda...</div>
         </div>
@@ -98,7 +98,7 @@ export default function ScreenComposicao({ clientId, onVoltar }) {
   if (error) {
     return (
       <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-        <Sidebar onLogout={logout} />
+        <Sidebar activeItem="Clientes" onNavigate={onNavigate} onLogout={logout} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ maxWidth: 360, textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.danger, marginBottom: 12 }}>
@@ -128,7 +128,7 @@ export default function ScreenComposicao({ clientId, onVoltar }) {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-      <Sidebar onLogout={logout} />
+      <Sidebar activeItem="Clientes" onNavigate={onNavigate} onLogout={logout} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'auto' }}>
         <CompHeader
           onVoltar={onVoltar}
@@ -143,6 +143,14 @@ export default function ScreenComposicao({ clientId, onVoltar }) {
               });
             } catch (e) {
               console.error('Falha ao exportar dossiê', e);
+            }
+          }}
+          onExportPdf={async () => {
+            try {
+              const statement = await clientsApi.getStatement(clientId);
+              exportExtratoPdf(clientData?.client, statement);
+            } catch (e) {
+              console.error('Falha ao exportar extrato PDF', e);
             }
           }}
         />
@@ -174,7 +182,7 @@ export default function ScreenComposicao({ clientId, onVoltar }) {
 }
 
 // ───────── Header (with breadcrumb + export actions) ─────────
-function CompHeader({ onVoltar, onExportExcel }) {
+function CompHeader({ onVoltar, onExportExcel, onExportPdf }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
@@ -209,7 +217,7 @@ function CompHeader({ onVoltar, onExportExcel }) {
           <Icon d={I.download} size={15} stroke={TOKENS.success} strokeWidth={1.8} />
           Exportar Excel
         </button>
-        <button className="lz-btn-ghost" style={{
+        <button onClick={onExportPdf} className="lz-btn-ghost" style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
           padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: TOKENS.text,
         }}>

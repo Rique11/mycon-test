@@ -6,14 +6,14 @@ import Icon from './Icon.jsx';
 import logoLizard from '../assets/logo-app-icon.png';
 
 const NAV_ITEMS = [
-  { label: 'Painel',           icon: I.grid },
-  { label: 'POC Contemplados', icon: I.box },
-  { label: 'Clientes',         icon: I.users,    active: true },
-  { label: 'Relatórios',       icon: I.bars },
-  { label: 'Configurações',    icon: I.settings },
+  { label: 'Painel',           icon: I.grid,  enabled: false },
+  { label: 'POC Contemplados', icon: I.box,   enabled: true },
+  { label: 'Clientes',         icon: I.users, enabled: true },
+  { label: 'Relatórios',       icon: I.bars,     enabled: false },
+  { label: 'Configurações',    icon: I.settings, enabled: false },
 ];
 
-export default function Sidebar({ onLogout }) {
+export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout }) {
   return (
     <aside style={{
       width: 248,
@@ -63,12 +63,23 @@ export default function Sidebar({ onLogout }) {
 
       {/* Navegação */}
       <nav style={{ flex: 1, padding: '4px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {NAV_ITEMS.map((item) => (
-          <button key={item.label} className={`lz-nav-item${item.active ? ' active' : ''}`}>
-            <Icon d={item.icon} size={18} stroke="currentColor" strokeWidth={item.active ? 1.85 : 1.75} />
-            {item.label}
-          </button>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const active = item.label === activeItem;
+          const enabled = item.enabled === true;
+          return (
+            <button
+              key={item.label}
+              className={`lz-nav-item${active ? ' active' : ''}`}
+              disabled={!enabled}
+              title={enabled ? undefined : 'Em breve'}
+              onClick={() => enabled && onNavigate?.(item.label)}
+              style={!enabled ? { cursor: 'not-allowed', opacity: 0.48 } : undefined}
+            >
+              <Icon d={item.icon} size={18} stroke="currentColor" strokeWidth={active ? 1.85 : 1.75} />
+              {item.label}
+            </button>
+          );
+        })}
       </nav>
 
       {/* Rodapé */}

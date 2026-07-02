@@ -12,7 +12,7 @@ import Sidebar from './components/Sidebar.jsx';
 import { useClientData } from './hooks/useClientData.ts';
 import { useAuth } from './hooks/useAuth.ts';
 import { clientsApi } from './services/api.js';
-import { exportExtrato } from './services/exportExcel.js';
+import { exportConsolidado, exportExtratoPdf } from './services/exportExcel.js';
 
 function fmtBRL(v) {
   if (v == null) return 'R$ 0,00';
@@ -62,7 +62,7 @@ function InfoTip({ text }) {
 }
 
 // ───────── Tela principal ─────────
-export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
+export default function ScreenCliente({ clientId, onVoltar, onVerComposicao, onNavigate, backLabel = 'Voltar para clientes' }) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useClientData(clientId);
 
@@ -155,17 +155,34 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-      <Sidebar onLogout={logout} />
+      <Sidebar activeItem="Clientes" onNavigate={onNavigate} onLogout={logout} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
         <PageHeader
           dataAnalise={clienteFormatado.dataAnalise}
           onVoltar={onVoltar}
-          onExportExtrato={async () => {
+          backLabel={backLabel}
+          onExportExcel={async () => {
+            try {
+              const [income, statement] = await Promise.all([
+                clientsApi.getIncomeComposition(clientId),
+                clientsApi.getStatement(clientId),
+              ]);
+              exportConsolidado({
+                client,
+                insights,
+                income,
+                statement,
+              });
+            } catch (e) {
+              console.error('Falha ao exportar dossiê', e);
+            }
+          }}
+          onExportPdf={async () => {
             try {
               const statement = await clientsApi.getStatement(clientId);
-              exportExtrato(client, statement);
+              exportExtratoPdf(client, statement);
             } catch (e) {
-              console.error('Falha ao exportar extrato', e);
+              console.error('Falha ao exportar extrato PDF', e);
             }
           }}
         />
@@ -184,7 +201,7 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao }) {
 }
 
 // ───────── Header da página ─────────
-function PageHeader({ dataAnalise, onVoltar, onExportExtrato }) {
+function PageHeader({ dataAnalise, onVoltar, backLabel, onExportExcel, onExportPdf }) {
   return (
     <div style={{
       display: 'flex',
@@ -201,18 +218,25 @@ function PageHeader({ dataAnalise, onVoltar, onExportExtrato }) {
           padding: '7px 12px', fontSize: 13, fontWeight: 500, color: TOKENS.textMuted,
         }}>
           <Icon d={I.arrowLeft} size={14} stroke={TOKENS.textMuted} strokeWidth={1.8} />
-          Voltar para clientes
+          {backLabel}
         </button>
         <span style={{ color: TOKENS.borderStrong }}>·</span>
         <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Análise do cliente</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={onExportExtrato} className="lz-btn-ghost" style={{
+        <button onClick={onExportExcel} className="lz-btn-ghost" style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
           padding: '7px 12px', fontSize: 13, fontWeight: 500, color: TOKENS.text,
         }}>
           <Icon d={I.download} size={14} stroke={TOKENS.success} strokeWidth={1.8} />
-          Exportar extrato
+          Exportar Excel
+        </button>
+        <button onClick={onExportPdf} className="lz-btn-ghost" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          padding: '7px 12px', fontSize: 13, fontWeight: 500, color: TOKENS.text,
+        }}>
+          <Icon d={I.doc} size={14} stroke={TOKENS.danger} strokeWidth={1.8} />
+          Exportar PDF
         </button>
         <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>{dataAnalise}</span>
       </div>

@@ -7,6 +7,16 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'https://api.datalizard.tech',
+        changeOrigin: true,
+        secure: true,
+        headers: {
+          Origin: 'https://mycon.datalizard.tech',
+        },
+      },
+    },
   },
   build: {
     outDir: 'dist',

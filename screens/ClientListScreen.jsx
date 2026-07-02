@@ -8,9 +8,8 @@ import Badge from '../components/Badge.jsx';
 import Card from '../components/Card.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import { useClientList } from '../hooks/useClientList.ts';
-import { useAuth } from '../hooks/useAuth.ts';
 
-export default function ClientListScreen({ onSelectClient, onLogout }) {
+export default function ClientListScreen({ onSelectClient, onLogout, activeItem = 'Clientes', onNavigate }) {
   const { clients, loading, error, retry } = useClientList();
   const [searchTerm, setSearchTerm] = React.useState('');
 
@@ -23,7 +22,7 @@ export default function ClientListScreen({ onSelectClient, onLogout }) {
   if (loading) {
     return (
       <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-        <Sidebar onLogout={onLogout} />
+        <Sidebar activeItem={activeItem} onNavigate={onNavigate} onLogout={onLogout} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.text, marginBottom: 8 }}>
@@ -38,7 +37,7 @@ export default function ClientListScreen({ onSelectClient, onLogout }) {
   if (error) {
     return (
       <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-        <Sidebar onLogout={onLogout} />
+        <Sidebar activeItem={activeItem} onNavigate={onNavigate} onLogout={onLogout} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <div style={{ maxWidth: 360, textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.danger, marginBottom: 12 }}>
@@ -58,7 +57,7 @@ export default function ClientListScreen({ onSelectClient, onLogout }) {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-      <Sidebar onLogout={onLogout} />
+      <Sidebar activeItem={activeItem} onNavigate={onNavigate} onLogout={onLogout} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
         {/* Header */}
         <div style={{
