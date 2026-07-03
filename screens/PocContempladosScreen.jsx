@@ -5,6 +5,7 @@ import Icon from '../components/Icon.jsx';
 import Badge from '../components/Badge.jsx';
 import Card from '../components/Card.jsx';
 import Button from '../components/Button.jsx';
+import StepNumber from '../components/StepNumber.jsx';
 import { ApiError, clientsApi } from '../services/api.js';
 import { exportConsolidado, exportExtratoPdf } from '../services/exportExcel.js';
 import {
@@ -576,7 +577,8 @@ function CasesTable({ cases, allCases, activeFilter, onFilterChange, onSelectCas
 
 function CaseRow({ caseItem, onSelectCase }) {
   const meta = getStatusMeta(caseItem.status);
-  const banks = caseItem.banks?.length ? caseItem.banks.join(', ') : 'Sem conexão';
+  const bankLabels = getLocalBankLabels(caseItem);
+  const banks = bankLabels.length ? bankLabels.join(', ') : 'Sem conexão';
 
   return (
     <tr
@@ -1100,7 +1102,7 @@ function getCollectionInfo(caseItem) {
 }
 
 function getAccountTags(caseItem) {
-  const banks = Array.isArray(caseItem.banks) ? caseItem.banks : [];
+  const banks = getLocalBankLabels(caseItem);
   return banks.map((bank, index) => {
     if (caseItem.status === 'semRenda') return { bank, label: 'Sem renda', tone: 'danger' };
     if (caseItem.status === 'maisContas') return { bank, label: index === 0 ? 'Conta de apoio' : 'Sem renda', tone: 'warning' };
@@ -1133,6 +1135,199 @@ function getOutputInfo(caseItem, meta) {
     message: meta.pending || 'Sem pacote de extrato disponivel neste status.',
     generatedAt: null,
   };
+}
+
+function hasStatementRows(statement) {
+  return Array.isArray(statement?.rows) && statement.rows.length > 0;
+}
+
+function hasIncomeEvidence(income) {
+  return Array.isArray(income?.months) && income.months.length > 0;
+}
+
+function hasReadyEvidence(evidence) {
+  return hasStatementRows(evidence?.statement) || hasIncomeEvidence(evidence?.income);
+}
+
+function getEvidenceHash(caseItem, evidence) {
+  return evidence?.statement?.hash
+    || evidence?.statement?.evidenceHash
+    || evidence?.income?.hash
+    || evidence?.income?.evidenceHash
+    || caseItem.evidenceHash
+    || fallbackEvidenceHash(caseItem);
+}
+
+function getPeriodLabel(statement, income) {
+  const from = statement?.fromYearMonth || income?.fromYearMonth;
+  const to = statement?.toYearMonth || income?.toYearMonth;
+  if (from && to) return `${from} a ${to}`;
+  return '12 meses';
+}
+
+function normalizeBankLabel(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (!/[A-Za-zÀ-ÿ]/.test(raw)) return '';
+  const lower = raw.toLowerCase();
+  if (lower.includes('open finance') || lower.includes('akropoli')) return '';
+  if (lower.includes('itau') || lower.includes('itaú')) return 'Itau';
+  if (lower.includes('bradesco')) return 'Bradesco';
+  if (lower.includes('nubank') || lower.includes('nu ')) return 'Nubank';
+  if (lower.includes('santander')) return 'Santander';
+  if (lower.includes('caixa')) return 'Caixa';
+  if (lower.includes('banco do brasil')) return 'Banco do Brasil';
+  if (lower === 'inter' || lower.includes('banco inter')) return 'Inter';
+  if (lower.includes('mercado pago')) return 'Mercado Pago';
+  return raw.split(/[|/,-]/)[0].trim();
+}
+
+function getLocalBankLabels(caseItem) {
+  return Array.from(new Set((caseItem.banks || []).map(normalizeBankLabel).filter(Boolean)));
+}
+
+function getFieldCandidates(row) {
+  return [
+    row?.bank,
+    row?.bankName,
+    row?.institution,
+    row?.institutionName,
+    row?.financialInstitution,
+    row?.brandName,
+    row?.account,
+    row?.accountName,
+    row?.origin,
+  ];
+}
+
+function deriveInstitutions(caseItem, evidence) {
+  const names = new Set();
+  const rows = evidence?.statement?.rows || [];
+  rows.forEach((row) => {
+    getFieldCandidates(row).forEach((value) => {
+      const label = normalizeBankLabel(value);
+      if (label) names.add(label);
+    });
+  });
+
+  if (names.size === 0 && Array.isArray(evidence?.links)) {
+    evidence.links.forEach((link) => {
+      [
+        link?.bank,
+        link?.bankName,
+        link?.institution,
+        link?.institutionName,
+        link?.brandName,
+        link?.provider,
+      ].forEach((value) => {
+        const label = normalizeBankLabel(value);
+        if (label) names.add(label);
+      });
+    });
+  }
+
+  if (names.size === 0) {
+    (caseItem.banks || []).forEach((value) => {
+      const label = normalizeBankLabel(value);
+      if (label) names.add(label);
+    });
+  }
+
+  return Array.from(names);
+}
+
+function deriveAccountTags(caseItem, evidence) {
+  const rows = evidence?.statement?.rows || [];
+  const byBank = new Map();
+
+  rows.forEach((row) => {
+    const bank = getFieldCandidates(row).map(normalizeBankLabel).find(Boolean);
+    if (!bank) return;
+    const current = byBank.get(bank) || { bank, label: 'Conta considerada', tone: 'neutral', credits: 0 };
+    if (row.inflow != null || row.type === 'CREDIT') current.credits += 1;
+    byBank.set(bank, current);
+  });
+
+  const items = Array.from(byBank.values()).map((item, index) => ({
+    bank: item.bank,
+    label: item.credits > 0 || index === 0 ? 'Recebe renda' : 'Conta de apoio',
+    tone: item.credits > 0 || index === 0 ? 'success' : 'neutral',
+  }));
+
+  if (items.length) return items;
+
+  if (Array.isArray(evidence?.links)) {
+    const linkedBanks = new Set();
+    evidence.links.forEach((link) => {
+      [
+        link?.bank,
+        link?.bankName,
+        link?.institution,
+        link?.institutionName,
+        link?.brandName,
+        link?.provider,
+      ].forEach((value) => {
+        const label = normalizeBankLabel(value);
+        if (label) linkedBanks.add(label);
+      });
+    });
+
+    if (linkedBanks.size) {
+      return Array.from(linkedBanks).map((bank) => ({
+        bank,
+        label: 'Conta conectada',
+        tone: 'neutral',
+      }));
+    }
+  }
+
+  return getAccountTags(caseItem);
+}
+
+function getEffectiveMeta(caseItem, meta, evidence) {
+  if (hasReadyEvidence(evidence)) {
+    return {
+      ...getStatusMeta('pronto'),
+      nextAction: 'Revisar e entregar Excel consolidado com evidencias 12m.',
+    };
+  }
+  return meta;
+}
+
+function getEffectiveCollectionInfo(caseItem, evidence) {
+  if (hasReadyEvidence(evidence)) {
+    return {
+      label: 'Concluida',
+      tone: 'success',
+      period: getPeriodLabel(evidence?.statement, evidence?.income),
+      description: 'Open Finance sincronizado; extrato e composicao de renda ja disponiveis para exportacao.',
+    };
+  }
+  return getCollectionInfo(caseItem);
+}
+
+function getEffectiveOutputInfo(caseItem, meta, evidence, loading) {
+  if (loading) {
+    return {
+      label: 'Verificando',
+      tone: 'blue',
+      message: 'Buscando evidencias do cliente na API para confirmar disponibilidade do pacote 12m.',
+      generatedAt: null,
+    };
+  }
+
+  if (hasReadyEvidence(evidence)) {
+    return {
+      label: 'Pronto',
+      tone: 'success',
+      message: 'Extrato 12m e Excel consolidado disponiveis para revisao operacional.',
+      generatedAt: evidence?.insights?.lastSyncAt
+        ? new Date(evidence.insights.lastSyncAt).toLocaleString('pt-BR')
+        : caseItem.updatedAtLabel || 'Gerado a partir das evidencias Open Finance',
+    };
+  }
+
+  return getOutputInfo(caseItem, meta);
 }
 
 function hasStructuredPending(caseItem, meta) {
@@ -1202,17 +1397,32 @@ async function copyText(value) {
 function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
   const meta = getStatusMeta(caseItem.status);
   const events = getCaseEvents(caseItem);
-  const evidenceHash = caseItem.evidenceHash || fallbackEvidenceHash(caseItem);
   const consent = getConsentInfo(caseItem);
-  const collection = getCollectionInfo(caseItem);
-  const output = getOutputInfo(caseItem, meta);
-  const accountTags = getAccountTags(caseItem);
   const [openingClient, setOpeningClient] = React.useState(false);
   const [openClientError, setOpenClientError] = React.useState('');
   const [drawerMessage, setDrawerMessage] = React.useState('');
   const [copyLabel, setCopyLabel] = React.useState('Copiar');
   const [generatingLink, setGeneratingLink] = React.useState(false);
   const [exporting, setExporting] = React.useState('');
+  const [evidenceState, setEvidenceState] = React.useState({
+    loading: true,
+    client: null,
+    id: null,
+    insights: null,
+    income: null,
+    statement: null,
+    links: [],
+    error: '',
+  });
+
+  const evidence = evidenceState.loading ? null : evidenceState;
+  const effectiveMeta = getEffectiveMeta(caseItem, meta, evidence);
+  const collection = getEffectiveCollectionInfo(caseItem, evidence);
+  const output = getEffectiveOutputInfo(caseItem, meta, evidence, evidenceState.loading);
+  const evidenceHash = getEvidenceHash(caseItem, evidence);
+  const accountTags = deriveAccountTags(caseItem, evidence);
+  const institutions = deriveInstitutions(caseItem, evidence);
+  const outputsReady = hasReadyEvidence(evidence);
 
   React.useEffect(() => {
     function handleKeyDown(event) {
@@ -1223,12 +1433,62 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadEvidence() {
+      setEvidenceState((current) => ({ ...current, loading: true, error: '' }));
+      try {
+        const { client, id } = await resolveClientForCase(caseItem);
+        const [insights, income, statement, linksResult] = await Promise.all([
+          clientsApi.getInsights(id),
+          clientsApi.getIncomeComposition(id, { months: 12 }),
+          clientsApi.getStatement(id, { months: 12 }),
+          clientsApi.getLinks(id).catch(() => []),
+        ]);
+        if (cancelled) return;
+        const links = Array.isArray(linksResult) ? linksResult : linksResult?.content || [];
+        setEvidenceState({
+          loading: false,
+          client,
+          id,
+          insights,
+          income,
+          statement,
+          links,
+          error: '',
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setEvidenceState({
+          loading: false,
+          client: null,
+          id: null,
+          insights: null,
+          income: null,
+          statement: null,
+          links: [],
+          error: error.code === 'ambiguous' ? error.message : 'Cliente/evidencias nao localizados na API.',
+        });
+      }
+    }
+
+    loadEvidence();
+    return () => {
+      cancelled = true;
+    };
+  }, [caseItem.id, caseItem.clientId, caseItem.cpf, caseItem.email, caseItem.name]);
+
   function showMessage(message) {
     setDrawerMessage(message);
     window.setTimeout(() => setDrawerMessage(''), 2800);
   }
 
   async function getRealOrFallbackClient() {
+    if (evidenceState.id && evidenceState.client) {
+      return { client: evidenceState.client, id: evidenceState.id, fallback: false };
+    }
+
     try {
       const { client, id } = await resolveClientForCase(caseItem);
       return { client, id, fallback: false };
@@ -1310,14 +1570,21 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
     setDrawerMessage('');
     try {
       const { client, id, fallback } = await getRealOrFallbackClient();
-      let payload = emptyOutputPayload(caseItem);
-      if (!fallback && id) {
+      let payload = {
+        insights: evidenceState.insights,
+        income: evidenceState.income,
+        statement: evidenceState.statement,
+      };
+      if ((!payload.statement || !payload.income || !payload.insights) && !fallback && id) {
         const [insights, income, statement] = await Promise.all([
           clientsApi.getInsights(id),
           clientsApi.getIncomeComposition(id, { months: 12 }),
           clientsApi.getStatement(id, { months: 12 }),
         ]);
         payload = { insights, income, statement };
+      }
+      if (!payload.statement && !payload.income && !payload.insights) {
+        payload = emptyOutputPayload(caseItem);
       }
       exportConsolidado({ client, ...payload });
       onUpdateCase?.(caseItem.id, {
@@ -1338,10 +1605,11 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
     setDrawerMessage('');
     try {
       const { client, id, fallback } = await getRealOrFallbackClient();
-      let statement = emptyOutputPayload(caseItem).statement;
+      let statement = evidenceState.statement;
       if (!fallback && id) {
-        statement = await clientsApi.getStatement(id, { months: 12 });
+        statement = statement || await clientsApi.getStatement(id, { months: 12 });
       }
+      if (!statement) statement = emptyOutputPayload(caseItem).statement;
       exportExtratoPdf(client, statement);
       onUpdateCase?.(caseItem.id, {
         events: appendCaseEvent(caseItem, 'Extrato 12m em PDF exportado pelo drawer', 'Lizard'),
@@ -1366,7 +1634,7 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
       justifyContent: 'flex-end',
     }}>
       <aside className="lz-anim-panel" style={{
-        width: 'min(460px, 100vw)',
+        width: 'min(640px, 100vw)',
         height: '100%',
         background: TOKENS.surface,
         borderLeft: `1px solid ${TOKENS.border}`,
@@ -1389,16 +1657,16 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
 
         <div style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
           <section style={{ marginBottom: 18 }}>
-            <Badge tone={meta.tone} size="md" dot>{meta.label}</Badge>
+            <Badge tone={effectiveMeta.tone} size="md" dot>{effectiveMeta.label}</Badge>
             <p style={{ margin: '10px 0 0', color: TOKENS.text, fontSize: 13.2, lineHeight: 1.5 }}>
-              {meta.nextAction}
+              {effectiveMeta.nextAction}
             </p>
             <div style={{ marginTop: 10 }}>
-              <InfoLine label="Responsavel agora" value={meta.owner || '-'} />
+              <InfoLine label="Responsavel agora" value={effectiveMeta.owner || '-'} />
             </div>
           </section>
 
-          <DrawerSection title="Dados do contemplado">
+          <DrawerSection number={1} title="Dados do contemplado">
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <DrawerField label="CPF" value={caseItem.cpfMasked || maskCpf(caseItem.cpf)} mono />
               <DrawerField label="Celular / WhatsApp" value={caseItem.phone || '-'} mono />
@@ -1410,7 +1678,7 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
             </div>
           </DrawerSection>
 
-          <DrawerSection title="Status do consentimento" background={TOKENS.panel}>
+          <DrawerSection number={2} title="Status do consentimento" background={TOKENS.panel}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
               <Badge tone={consent.tone} dot>{consent.label}</Badge>
               {caseItem.consentLink && (
@@ -1423,10 +1691,7 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <InfoLine label="Validade do link" value={consent.validity} />
               <InfoLine label="ID do consentimento" value={consent.id} mono />
-              <InfoLine label="Bancos conectados" value={caseItem.banks?.length ? caseItem.banks.join(', ') : 'Nenhum banco conectado'} />
-              <InfoLine label="Link" value={caseItem.consentLink ? 'Disponível' : 'Não armazenado nesta linha'} />
-              <InfoLine label="Evidência/hash" value={evidenceHash} mono />
-              <InfoLine label="Pendência" value={meta.pending || 'Sem pendência operacional'} />
+              <InfoLine label="Link" value={caseItem.consentLink ? 'Disponivel para copiar' : 'Nao armazenado nesta linha'} />
             </div>
             {caseItem.status === 'expirado' && (
               <div style={{ marginTop: 12 }}>
@@ -1438,28 +1703,28 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
             )}
           </DrawerSection>
 
-          <DrawerSection title="Coleta Open Finance">
+          <DrawerSection number={3} title="Coleta Open Finance">
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
               <Badge tone={collection.tone} dot>{collection.label}</Badge>
               <span style={{ color: TOKENS.textMuted, fontSize: 12.4 }}>Periodo: {collection.period}</span>
             </div>
             <p style={{ margin: '0 0 12px', color: TOKENS.textMuted, fontSize: 12.8, lineHeight: 1.45 }}>{collection.description}</p>
-            <InfoLine label="Instituicoes conectadas" value={caseItem.banks?.length ? caseItem.banks.join(', ') : 'Nenhuma instituicao conectada'} />
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+            <InfoLine label="Instituicoes conectadas" value={institutions.length ? institutions.join(', ') : 'Nenhuma instituicao identificada'} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               {accountTags.length
                 ? accountTags.map((item) => <AccountTag key={`${item.bank}-${item.label}`} {...item} />)
                 : <span style={{ color: TOKENS.textSubtle, fontSize: 12.5 }}>Nenhuma conta considerada ate o momento.</span>}
             </div>
           </DrawerSection>
 
-          <DrawerSection title="Extrato e evidencias" background={TOKENS.panel}>
+          <DrawerSection number={4} title="Extrato e evidencias" background={TOKENS.panel}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
               <Badge tone={output.tone} dot>{output.label}</Badge>
               <span className="num" style={{ color: TOKENS.textSubtle, fontSize: 11.5 }}>{evidenceHash}</span>
             </div>
             <p style={{ margin: '0 0 10px', color: TOKENS.textMuted, fontSize: 12.8, lineHeight: 1.45 }}>{output.message}</p>
             {output.generatedAt && <InfoLine label="Geracao" value={output.generatedAt} />}
-            {caseItem.status === 'pronto' && (
+            {outputsReady && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
                 <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={Boolean(exporting)}>
                   <Icon d={I.doc} size={14} stroke="currentColor" strokeWidth={1.9} />
@@ -1473,14 +1738,14 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
             )}
           </DrawerSection>
 
-          {hasStructuredPending(caseItem, meta) && (
+          {hasStructuredPending(caseItem, effectiveMeta) && (
             <DrawerSection title="Pendencias e excecoes">
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <span style={{ width: 28, height: 28, borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#FEF2F2', color: TOKENS.danger, flexShrink: 0 }}>
                   <Icon d={I.alert} size={15} stroke="currentColor" strokeWidth={1.9} />
                 </span>
                 <p style={{ margin: 0, color: TOKENS.text, fontSize: 12.9, lineHeight: 1.5 }}>
-                  {meta.pending || 'Caso sem pendencia bloqueante registrada.'} {meta.nextAction}
+                  {effectiveMeta.pending || 'Caso sem pendencia bloqueante registrada.'} {effectiveMeta.nextAction}
                 </p>
               </div>
             </DrawerSection>
@@ -1528,11 +1793,16 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
   );
 }
 
-function DrawerSection({ title, children, background = TOKENS.surface }) {
+function DrawerSection({ number, title, children, background = TOKENS.surface }) {
   return (
-    <section style={{ padding: 14, border: `1px solid ${TOKENS.border}`, borderRadius: 12, background, marginBottom: 14 }}>
-      <h3 style={{ margin: '0 0 10px', color: TOKENS.title, fontSize: 14 }}>{title}</h3>
+    <section style={{ marginBottom: 16 }}>
+      <h3 style={{ margin: '0 0 10px', color: TOKENS.title, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+        {number && <StepNumber n={number} />}
+        {title}
+      </h3>
+      <div style={{ padding: 14, border: `1px solid ${TOKENS.border}`, borderRadius: 12, background }}>
       {children}
+      </div>
     </section>
   );
 }
@@ -1547,21 +1817,52 @@ function AccountTag({ bank, label, tone }) {
   const palette = colors[tone] || colors.neutral;
 
   return (
-    <span style={{
-      display: 'inline-flex',
+    <div style={{
+      display: 'flex',
       alignItems: 'center',
-      gap: 6,
-      border: `1px solid ${palette.border}`,
-      background: palette.bg,
-      color: palette.color,
-      borderRadius: 999,
-      padding: '5px 8px',
-      fontSize: 11.8,
-      fontWeight: 700,
+      justifyContent: 'space-between',
+      gap: 12,
+      border: `1px solid ${TOKENS.border}`,
+      background: TOKENS.surface,
+      borderRadius: 10,
+      padding: '10px 11px',
     }}>
-      {bank}
-      <span style={{ color: TOKENS.textMuted, fontWeight: 650 }}>{label}</span>
-    </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <span className="num" style={{
+          width: 30,
+          height: 30,
+          borderRadius: 8,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: TOKENS.primary,
+          color: '#fff',
+          fontSize: 11,
+          fontWeight: 800,
+          flexShrink: 0,
+        }}>
+          {String(bank || 'OF').slice(0, 2)}
+        </span>
+        <span style={{ minWidth: 0 }}>
+          <span style={{ display: 'block', color: TOKENS.text, fontSize: 13, fontWeight: 750, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {bank}
+          </span>
+          <span style={{ display: 'block', color: TOKENS.textMuted, fontSize: 11.5, marginTop: 2 }}>
+            Conta considerada
+          </span>
+        </span>
+      </span>
+      <span style={{
+        background: palette.bg,
+        color: palette.color,
+        border: `1px solid ${palette.border}`,
+        borderRadius: 999,
+        padding: '4px 8px',
+        fontSize: 11.2,
+        fontWeight: 750,
+        whiteSpace: 'nowrap',
+      }}>{label}</span>
+    </div>
   );
 }
 

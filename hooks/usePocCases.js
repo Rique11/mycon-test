@@ -116,7 +116,7 @@ const SEED_CASES = [
     product: 'imovel',
     letterValue: '—',
     contemplationDate: '2026-06-28',
-    banks: ['Open Finance'],
+    banks: [],
     status: 'conectado',
     updatedAtLabel: '28/06/26',
     createdAt: '2026-06-28T12:00:00.000Z',
