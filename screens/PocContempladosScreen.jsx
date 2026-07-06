@@ -12,6 +12,7 @@ import {
   PRODUCT_LABELS,
   POC_FILTERS,
   createPocCaseFromForm,
+  getQueueBusinessRules,
   getStatusMeta,
   maskCpf,
   normalizeCpf,
@@ -252,7 +253,7 @@ export default function PocContempladosScreen({ onLogout, onNavigate, onSelectCl
       <Sidebar activeItem="POC Contemplados" onNavigate={onNavigate} onLogout={onLogout} />
 
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <Topbar searchTerm={searchTerm} onSearchTermChange={setSearchTerm} />
+        <Topbar />
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '24px 30px 32px' }}>
           <section style={{ maxWidth: 1320, margin: '0 auto' }}>
@@ -266,6 +267,8 @@ export default function PocContempladosScreen({ onLogout, onNavigate, onSelectCl
                 allCases={cases}
                 activeFilter={activeFilter}
                 onFilterChange={setActiveFilter}
+                searchTerm={searchTerm}
+                onSearchTermChange={setSearchTerm}
                 onSelectCase={setSelectedCase}
               />
 
@@ -302,56 +305,18 @@ export default function PocContempladosScreen({ onLogout, onNavigate, onSelectCl
   );
 }
 
-function Topbar({ searchTerm, onSearchTermChange }) {
+function Topbar() {
   return (
     <header style={{
       height: 68,
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'space-between',
+      justifyContent: 'flex-end',
       gap: 20,
       padding: '0 30px',
       borderBottom: `1px solid ${TOKENS.border}`,
       background: TOKENS.surface,
     }}>
-      <div style={{
-        width: 'min(520px, 48vw)',
-        height: 40,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '0 12px',
-        border: `1px solid ${TOKENS.border}`,
-        borderRadius: 10,
-        background: TOKENS.panel,
-      }}>
-        <Icon d={I.search} size={17} stroke={TOKENS.textSubtle} strokeWidth={1.8} />
-        <input
-          value={searchTerm}
-          onChange={(event) => onSearchTermChange(event.target.value)}
-          placeholder="Buscar contemplado, CPF, grupo ou cota..."
-          style={{
-            flex: 1,
-            minWidth: 0,
-            border: 0,
-            outline: 0,
-            background: 'transparent',
-            color: TOKENS.text,
-            fontFamily: 'inherit',
-            fontSize: 13,
-          }}
-        />
-        <span style={{
-          flexShrink: 0,
-          fontSize: 10.5,
-          color: TOKENS.textSubtle,
-          border: `1px solid ${TOKENS.border}`,
-          borderRadius: 6,
-          padding: '2px 6px',
-          background: TOKENS.surface,
-        }}>Ctrl K</span>
-      </div>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <span style={{ fontSize: 12.5, color: TOKENS.textMuted }}>POC local + API Akropoli</span>
         <button className="lz-btn-ghost" style={{ width: 36, height: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -482,7 +447,7 @@ function MetricsGrid({ metrics }) {
   );
 }
 
-function CasesTable({ cases, allCases, activeFilter, onFilterChange, onSelectCase }) {
+function CasesTable({ cases, allCases, activeFilter, onFilterChange, searchTerm, onSearchTermChange, onSelectCase }) {
   return (
     <Card padding="0" style={{ overflow: 'hidden' }}>
       <div style={{
@@ -496,7 +461,7 @@ function CasesTable({ cases, allCases, activeFilter, onFilterChange, onSelectCas
         <div>
           <h2 style={{ margin: 0, fontSize: 16, color: TOKENS.title, letterSpacing: -0.2 }}>Fila operacional de casos</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12.5, color: TOKENS.textMuted }}>
-            Regra principal: cada status deve deixar claro quem precisa fazer o que agora.
+            Regra principal: consentimento recente, consentimento pendente ou aceite pronto para acessar os outputs.
           </p>
         </div>
         <Badge tone="neutral" size="md">{cases.length} exibidos</Badge>
@@ -504,42 +469,84 @@ function CasesTable({ cases, allCases, activeFilter, onFilterChange, onSelectCas
 
       <div style={{
         display: 'flex',
+        alignItems: 'center',
         gap: 8,
-        overflowX: 'auto',
+        flexWrap: 'wrap',
         padding: '12px 14px',
         borderBottom: `1px solid ${TOKENS.border}`,
         background: TOKENS.panel,
       }}>
-        {POC_FILTERS.map((filter) => {
-          const active = filter.key === activeFilter;
-          return (
-            <button
-              key={filter.key}
-              onClick={() => onFilterChange(filter.key)}
-              className={active ? 'lz-btn-primary' : 'lz-btn-ghost'}
-              style={{
-                flexShrink: 0,
-                padding: '8px 11px',
-                fontSize: 12,
-                fontWeight: 600,
-                color: active ? '#fff' : TOKENS.textMuted,
-                boxShadow: active ? SHADOWS.primary : 'none',
-              }}
-            >
-              {filter.label}
-              <span className="num" style={{ marginLeft: 7, opacity: active ? 0.85 : 0.7 }}>
-                {countByFilter(allCases, filter)}
-              </span>
-            </button>
-          );
-        })}
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', flex: '1 1 520px', minWidth: 0 }}>
+          {POC_FILTERS.map((filter) => {
+            const active = filter.key === activeFilter;
+            return (
+              <button
+                key={filter.key}
+                onClick={() => onFilterChange(filter.key)}
+                className={active ? 'lz-btn-primary' : 'lz-btn-ghost'}
+                style={{
+                  flexShrink: 0,
+                  padding: '8px 11px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: active ? '#fff' : TOKENS.textMuted,
+                  boxShadow: active ? SHADOWS.primary : 'none',
+                }}
+              >
+                {filter.label}
+                <span className="num" style={{ marginLeft: 7, opacity: active ? 0.85 : 0.7 }}>
+                  {countByFilter(allCases, filter)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{
+          flex: '0 1 390px',
+          minWidth: 260,
+          height: 38,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          padding: '0 11px',
+          border: `1px solid ${TOKENS.border}`,
+          borderRadius: 10,
+          background: TOKENS.surface,
+        }}>
+          <Icon d={I.search} size={16} stroke={TOKENS.textSubtle} strokeWidth={1.8} />
+          <input
+            value={searchTerm}
+            onChange={(event) => onSearchTermChange(event.target.value)}
+            placeholder="Buscar contemplado, CPF, grupo ou cota..."
+            style={{
+              flex: 1,
+              minWidth: 0,
+              border: 0,
+              outline: 0,
+              background: 'transparent',
+              color: TOKENS.text,
+              fontFamily: 'inherit',
+              fontSize: 12.5,
+            }}
+          />
+          <span style={{
+            flexShrink: 0,
+            fontSize: 10.5,
+            color: TOKENS.textSubtle,
+            border: `1px solid ${TOKENS.border}`,
+            borderRadius: 6,
+            padding: '2px 6px',
+            background: TOKENS.panel,
+          }}>Ctrl K</span>
+        </div>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1060 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 960 }}>
           <thead>
             <tr style={{ background: TOKENS.surface }}>
-              {['Caso', 'Contemplado', 'Produto', 'Grupo / Cota', 'Bancos', 'Status', 'Extrato 12m', 'Próxima ação', 'Atualização'].map((head) => (
+              {['Caso', 'Contemplado', 'Produto', 'Grupo / Cota', 'Bancos', 'Status', 'Próxima ação', 'Atualização'].map((head) => (
                 <th key={head} style={{
                   padding: '11px 14px',
                   textAlign: 'left',
@@ -559,7 +566,7 @@ function CasesTable({ cases, allCases, activeFilter, onFilterChange, onSelectCas
           <tbody>
             {cases.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: 34, textAlign: 'center', color: TOKENS.textMuted, fontSize: 13 }}>
+                <td colSpan={8} style={{ padding: 34, textAlign: 'center', color: TOKENS.textMuted, fontSize: 13 }}>
                   Nenhum caso encontrado para esse filtro.
                 </td>
               </tr>
@@ -576,9 +583,9 @@ function CasesTable({ cases, allCases, activeFilter, onFilterChange, onSelectCas
 }
 
 function CaseRow({ caseItem, onSelectCase }) {
-  const meta = getStatusMeta(caseItem.status);
+  const queueRule = getQueueBusinessRules(caseItem);
   const bankLabels = getLocalBankLabels(caseItem);
-  const banks = bankLabels.length ? bankLabels.join(', ') : 'Sem conexão';
+  const banks = getQueueBanksLabel(caseItem, queueRule, bankLabels);
 
   return (
     <tr
@@ -621,21 +628,16 @@ function CaseRow({ caseItem, onSelectCase }) {
         <div className="num" style={{ fontSize: 12.5, color: TOKENS.text }}>G {caseItem.group} / C {caseItem.quota}</div>
       </td>
       <td style={{ padding: '13px 14px', verticalAlign: 'top', maxWidth: 150 }}>
-        <span style={{ fontSize: 12.5, color: caseItem.banks?.length ? TOKENS.text : TOKENS.textSubtle }}>
+        <span style={{ fontSize: 12.5, color: bankLabels.length ? TOKENS.text : TOKENS.textSubtle }}>
           {banks}
         </span>
       </td>
       <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
-        <Badge tone={meta.tone} dot>{meta.label}</Badge>
-      </td>
-      <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
-        <span style={{ fontSize: 12.5, color: meta.statement === 'Pronto' ? TOKENS.success : TOKENS.textMuted, fontWeight: 600 }}>
-          {meta.statement}
-        </span>
+        <Badge tone={queueRule.tone} dot>{queueRule.statusLabel}</Badge>
       </td>
       <td style={{ padding: '13px 14px', verticalAlign: 'top', maxWidth: 260 }}>
         <span style={{ display: 'block', fontSize: 12.2, color: TOKENS.textMuted, lineHeight: 1.4 }}>
-          {meta.nextAction}
+          {queueRule.nextAction}
         </span>
       </td>
       <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
@@ -1186,6 +1188,17 @@ function getLocalBankLabels(caseItem) {
   return Array.from(new Set((caseItem.banks || []).map(normalizeBankLabel).filter(Boolean)));
 }
 
+function haveSameBankLabels(current = [], next = []) {
+  if (current.length !== next.length) return false;
+  const currentSet = new Set(current);
+  return next.every((label) => currentSet.has(label));
+}
+
+function getQueueBanksLabel(caseItem, queueRule, bankLabels = getLocalBankLabels(caseItem)) {
+  if (bankLabels.length) return bankLabels.join(', ');
+  return queueRule.accepted ? 'Banco nao identificado' : 'Aguardando consentimento';
+}
+
 function getFieldCandidates(row) {
   return [
     row?.bank,
@@ -1287,8 +1300,9 @@ function deriveAccountTags(caseItem, evidence) {
 function getEffectiveMeta(caseItem, meta, evidence) {
   if (hasReadyEvidence(evidence)) {
     return {
-      ...getStatusMeta('pronto'),
-      nextAction: 'Revisar e entregar Excel consolidado com evidencias 12m.',
+      ...meta,
+      statement: 'Pronto',
+      pending: null,
     };
   }
   return meta;
@@ -1395,7 +1409,7 @@ async function copyText(value) {
 }
 
 function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
-  const meta = getStatusMeta(caseItem.status);
+  const baseMeta = getStatusMeta(caseItem.status);
   const events = getCaseEvents(caseItem);
   const consent = getConsentInfo(caseItem);
   const [openingClient, setOpeningClient] = React.useState(false);
@@ -1416,13 +1430,22 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
   });
 
   const evidence = evidenceState.loading ? null : evidenceState;
+  const outputsReady = hasReadyEvidence(evidence);
+  const queueRule = getQueueBusinessRules(caseItem, { evidenceReady: outputsReady });
+  const meta = {
+    ...baseMeta,
+    label: queueRule.statusLabel,
+    tone: queueRule.tone,
+    owner: queueRule.owner,
+    nextAction: queueRule.nextAction,
+    pending: outputsReady ? null : baseMeta.pending,
+  };
   const effectiveMeta = getEffectiveMeta(caseItem, meta, evidence);
   const collection = getEffectiveCollectionInfo(caseItem, evidence);
   const output = getEffectiveOutputInfo(caseItem, meta, evidence, evidenceState.loading);
   const evidenceHash = getEvidenceHash(caseItem, evidence);
   const accountTags = deriveAccountTags(caseItem, evidence);
   const institutions = deriveInstitutions(caseItem, evidence);
-  const outputsReady = hasReadyEvidence(evidence);
 
   React.useEffect(() => {
     function handleKeyDown(event) {
@@ -1448,6 +1471,15 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
         ]);
         if (cancelled) return;
         const links = Array.isArray(linksResult) ? linksResult : linksResult?.content || [];
+        const evidencePayload = { client, id, insights, income, statement, links, error: '' };
+        const derivedBanks = deriveInstitutions(caseItem, evidencePayload);
+        const currentBanks = getLocalBankLabels(caseItem);
+        if (derivedBanks.length && !haveSameBankLabels(currentBanks, derivedBanks)) {
+          onUpdateCase?.(caseItem.id, {
+            banks: derivedBanks,
+            updatedAtLabel: caseItem.updatedAtLabel,
+          });
+        }
         setEvidenceState({
           loading: false,
           client,
@@ -1553,6 +1585,7 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
         status: 'enviado',
         consentLink,
         consent: result?.consent || caseItem.consent,
+        consentCreatedAt: now.toISOString(),
         consentExpiresAt: expiresAt.toISOString(),
         events: appendCaseEvent(caseItem, 'Novo link de consentimento gerado', 'Akropoli'),
       });
@@ -1583,14 +1616,20 @@ function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
         ]);
         payload = { insights, income, statement };
       }
+      let dataStatus = fallback ? 'demo' : 'real';
       if (!payload.statement && !payload.income && !payload.insights) {
         payload = emptyOutputPayload(caseItem);
+        dataStatus = fallback ? 'demo' : 'empty';
       }
-      exportConsolidado({ client, ...payload });
+      await exportConsolidado({ client, caseItem, dataStatus, ...payload });
       onUpdateCase?.(caseItem.id, {
         events: appendCaseEvent(caseItem, 'Excel consolidado exportado pelo drawer', 'Lizard'),
       });
-      if (fallback) showMessage('Excel demonstrativo exportado com dados do caso; cliente real nao foi localizado.');
+      if (dataStatus !== 'real') {
+        showMessage(dataStatus === 'demo'
+          ? 'Excel demonstrativo exportado com dados do caso; cliente real nao foi localizado.'
+          : 'Excel exportado, mas o cliente real nao possui dados de Open Finance ainda.');
+      }
     } catch (error) {
       showMessage(error.code === 'ambiguous'
         ? error.message

@@ -167,7 +167,7 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao, onN
                 clientsApi.getIncomeComposition(clientId),
                 clientsApi.getStatement(clientId),
               ]);
-              exportConsolidado({
+              await exportConsolidado({
                 client,
                 insights,
                 income,

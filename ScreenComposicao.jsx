@@ -135,7 +135,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
           onExportExcel={async () => {
             try {
               const statement = await clientsApi.getStatement(clientId);
-              exportConsolidado({
+              await exportConsolidado({
                 client: clientData?.client,
                 insights: clientData?.insights,
                 income: data,

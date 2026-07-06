@@ -2,6 +2,16 @@ import React from 'react';
 
 const STORAGE_KEY = 'mycon_poc_cases_v1';
 
+const RECENT_LINK_DAYS = 5;
+
+const CONSENT_ACCEPTED_STATUSES = new Set(['conectado', 'maisContas', 'semRenda', 'pronto']);
+
+export const QUEUE_ACTIONS = {
+  sendAndWait: 'Link gerado, enviar e aguardar consentimento',
+  investigateNoConsent: 'Verificar porque o cliente ainda nao consentiu',
+  accessOutputs: 'Consentimento aceito, pronto para acessar o extrato e excel',
+};
+
 export const PRODUCT_LABELS = {
   imovel: 'Imóvel',
   veiculo: 'Veículo',
@@ -13,7 +23,7 @@ export const POC_STATUS = {
     label: 'Consentimento enviado',
     tone: 'blue',
     owner: 'Cliente',
-    nextAction: 'Reenviar link se necessário e acompanhar aceite do cliente.',
+    nextAction: QUEUE_ACTIONS.sendAndWait,
     statement: 'Aguardando',
     pending: 'Cliente ainda não consentiu.',
   },
@@ -21,7 +31,7 @@ export const POC_STATUS = {
     label: 'Aguardando consentimento',
     tone: 'warning',
     owner: 'Cliente',
-    nextAction: 'Aguardar cliente autorizar ou acionar relacionamento.',
+    nextAction: QUEUE_ACTIONS.investigateNoConsent,
     statement: 'Aguardando',
     pending: 'Cliente ainda não consentiu.',
   },
@@ -29,7 +39,7 @@ export const POC_STATUS = {
     label: 'Open Finance conectado',
     tone: 'purple',
     owner: 'Lizard',
-    nextAction: 'Acompanhar coleta e validar disponibilidade do pacote 12m.',
+    nextAction: QUEUE_ACTIONS.accessOutputs,
     statement: 'Em coleta',
     pending: 'Coleta Open Finance em andamento.',
   },
@@ -37,7 +47,7 @@ export const POC_STATUS = {
     label: 'Mais contas necessárias',
     tone: 'warning',
     owner: 'Cliente',
-    nextAction: 'Solicitar conexão da conta onde o cliente recebe renda.',
+    nextAction: QUEUE_ACTIONS.accessOutputs,
     statement: 'Aguardando',
     pending: 'Falta conectar a conta onde recebe renda.',
   },
@@ -45,7 +55,7 @@ export const POC_STATUS = {
     label: 'Conta sem renda identificada',
     tone: 'danger',
     owner: 'Cliente',
-    nextAction: 'Pedir outro banco/conta ou encaminhar para revisão operacional.',
+    nextAction: QUEUE_ACTIONS.accessOutputs,
     statement: 'Aguardando',
     pending: 'Banco conectado não possui renda identificada.',
   },
@@ -53,7 +63,7 @@ export const POC_STATUS = {
     label: 'Extrato 12m pronto',
     tone: 'success',
     owner: 'Lizard',
-    nextAction: 'Revisar e entregar Excel consolidado com evidências 12m.',
+    nextAction: QUEUE_ACTIONS.accessOutputs,
     statement: 'Pronto',
     pending: null,
   },
@@ -61,7 +71,7 @@ export const POC_STATUS = {
     label: 'Expirado sem consentimento',
     tone: 'danger',
     owner: 'Mycon',
-    nextAction: 'Reenviar convite ou encerrar tentativa conforme orientação Mycon.',
+    nextAction: QUEUE_ACTIONS.investigateNoConsent,
     statement: 'Aguardando',
     pending: 'Consentimento expirado.',
   },
@@ -69,7 +79,7 @@ export const POC_STATUS = {
     label: 'Escalado para Mycon',
     tone: 'warning',
     owner: 'Mycon',
-    nextAction: 'Aguardar definição da Mycon antes de seguir na operação.',
+    nextAction: QUEUE_ACTIONS.investigateNoConsent,
     statement: 'Aguardando',
     pending: 'Caso escalado para Mycon.',
   },
@@ -77,7 +87,7 @@ export const POC_STATUS = {
     label: 'Enviado para fluxo manual',
     tone: 'neutral',
     owner: 'Mycon',
-    nextAction: 'Seguir coleta manual por PDF/documentos.',
+    nextAction: QUEUE_ACTIONS.investigateNoConsent,
     statement: 'Aguardando',
     pending: 'Fluxo manual por PDF.',
   },
@@ -85,11 +95,9 @@ export const POC_STATUS = {
 
 export const POC_FILTERS = [
   { key: 'todos', label: 'Todos', statuses: null },
-  { key: 'aguardando', label: 'Aguardando consentimento', statuses: ['enviado', 'aguardando'] },
-  { key: 'conectado', label: 'Open Finance conectado', statuses: ['conectado'] },
-  { key: 'pronto', label: 'Extrato pronto', statuses: ['pronto'] },
-  { key: 'pendencia', label: 'Pendências', statuses: ['maisContas', 'semRenda', 'escalado', 'manual'] },
-  { key: 'expirado', label: 'Expirados', statuses: ['expirado'] },
+  { key: 'aguardando', label: 'Consentimento pendente', statuses: ['enviado', 'aguardando', 'expirado'] },
+  { key: 'conectado', label: 'Consentimento aceito', statuses: ['conectado', 'maisContas', 'semRenda', 'pronto'] },
+  { key: 'pendencia', label: 'Excecoes operacionais', statuses: ['escalado', 'manual'] },
 ];
 
 function addDays(date, days) {
@@ -358,6 +366,80 @@ export function getStatusMeta(status) {
   return POC_STATUS[status] ?? POC_STATUS.aguardando;
 }
 
+function parseDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getConsentStatusValue(caseItem) {
+  return String(
+    caseItem.consent?.status
+      || caseItem.consent?.state
+      || caseItem.consent?.consentStatus
+      || '',
+  ).toLowerCase();
+}
+
+export function isConsentAccepted(caseItem, options = {}) {
+  if (options.evidenceReady) return true;
+  if (CONSENT_ACCEPTED_STATUSES.has(caseItem.status)) return true;
+  const consentStatus = getConsentStatusValue(caseItem);
+  return ['accepted', 'authorized', 'authorised', 'autorizado', 'ativo', 'active'].some((value) =>
+    consentStatus.includes(value),
+  );
+}
+
+export function getConsentGeneratedAt(caseItem) {
+  return parseDate(
+    caseItem.consentCreatedAt
+      || caseItem.linkGeneratedAt
+      || caseItem.consent?.createdAt
+      || caseItem.consent?.created_at
+      || caseItem.createdAt,
+  );
+}
+
+export function getQueueBusinessRules(caseItem, options = {}) {
+  if (isConsentAccepted(caseItem, options)) {
+    return {
+      key: 'accepted',
+      statusLabel: 'Consentimento aceito',
+      tone: 'success',
+      owner: 'Lizard',
+      nextAction: QUEUE_ACTIONS.accessOutputs,
+      accepted: true,
+    };
+  }
+
+  const generatedAt = getConsentGeneratedAt(caseItem);
+  const now = parseDate(options.now) || new Date();
+  const ageInDays = generatedAt
+    ? Math.floor((now.getTime() - generatedAt.getTime()) / 86400000)
+    : null;
+  const isRecent = ageInDays == null || ageInDays <= RECENT_LINK_DAYS;
+
+  if (isRecent) {
+    return {
+      key: 'link-gerado',
+      statusLabel: 'Link gerado',
+      tone: 'blue',
+      owner: 'Cliente',
+      nextAction: QUEUE_ACTIONS.sendAndWait,
+      accepted: false,
+    };
+  }
+
+  return {
+    key: 'sem-consentimento',
+    statusLabel: 'Consentimento pendente',
+    tone: 'warning',
+    owner: 'Lizard',
+    nextAction: QUEUE_ACTIONS.investigateNoConsent,
+    accepted: false,
+  };
+}
+
 export function createPocCaseFromForm(form, apiResult = {}) {
   const now = new Date();
   const cpf = normalizeCpf(form.cpf);
@@ -379,6 +461,7 @@ export function createPocCaseFromForm(form, apiResult = {}) {
     status: 'enviado',
     updatedAtLabel: 'Agora',
     createdAt: now.toISOString(),
+    consentCreatedAt: now.toISOString(),
     consentExpiresAt: addDays(now, 7),
     evidenceHash: evidenceHashFromCaseId(form.externalCaseId),
     events: [
