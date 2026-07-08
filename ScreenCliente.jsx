@@ -702,4 +702,21 @@ function DecisaoSugerida({ cliente, insights, onAprovar, onRevisaoManual, onDeta
               { l: 'Status',            v: cliente.status },
               { l: 'Renda verificada',  v: fmtBRL(cliente.rendaVerificada), mono: true },
               { l: 'Débito/Renda',      v: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—', mono: true },
-            ].map((f, i, arr) =>
+            ].map((f, i, arr) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                gap: 12, paddingBottom: 10,
+                borderBottom: i < arr.length - 1 ? `1px solid ${TOKENS.border}` : 'none',
+              }}>
+                <span style={{ fontSize: 12, color: TOKENS.textMuted, flexShrink: 0 }}>{f.l}</span>
+                <span className={f.mono ? 'num' : ''} style={{ fontSize: 12.5, fontWeight: 500, color: TOKENS.text, textAlign: 'right' }}>
+                  {f.v}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}

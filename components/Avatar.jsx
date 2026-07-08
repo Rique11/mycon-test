@@ -34,4 +34,10 @@ export default function Avatar({ name, size = 36, tone = 'brand' }) {
       fontSize: size * 0.36,
       fontWeight: 600,
       flexShrink: 0,
-      l
+      letterSpacing: -0.3,
+      userSelect: 'none',
+    }}>
+      {initials(name)}
+    </div>
+  );
+}

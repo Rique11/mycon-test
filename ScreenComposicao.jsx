@@ -548,4 +548,12 @@ function LeituraOperacional({ onVoltar }) {
                 onClick={onVoltar}
                 style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
               >
-     
+                Voltar para análise do cliente
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
