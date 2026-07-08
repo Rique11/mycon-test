@@ -14,68 +14,8 @@ import { useClientData } from './hooks/useClientData.ts';
 import { useAuth } from './hooks/useAuth.ts';
 import { clientsApi } from './services/api';
 import { exportConsolidado, exportExtratoPdf } from './services/exportExcel.js';
-
-// ─── Helpers de formatação e mapeamento backend → UI ────────────────────────
-
-const MESES_CURTO = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-const MESES_LONGO = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-
-function num(v) {
-  const n = Number(v ?? 0);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function fmt(v) {
-  const n = num(v);
-  if (n === 0) return 'R$ 0,00';
-  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function ymLabels(ym) {
-  const [y, m] = String(ym).split('-').map(Number);
-  const i = (m || 1) - 1;
-  return { label: `${MESES_CURTO[i]}/${String(y).slice(-2)}`, long: `${MESES_LONGO[i]}/${y}` };
-}
-
-function confTone(conf) {
-  if (conf === 'Alta') return 'success';
-  if (conf === 'Média' || conf === 'Media') return 'warning';
-  return 'danger';
-}
-
-const CLS_KEY = { REC: 'rec', PIX: 'pix', ENT: 'ent', NREC: 'nrec', ATIP: 'atip' };
-
-function mapMonth(mo) {
-  const { label, long } = ymLabels(mo.yearMonth);
-  return {
-    id: mo.yearMonth, label, long,
-    rec: num(mo.recurring), pix: num(mo.pixRecurring), ent: num(mo.betweenAccounts),
-    nrec: num(mo.nonRecurring), atip: num(mo.atypical),
-    total: num(mo.totalCredits), val: num(mo.validatedIncome),
-    conf: mo.confidence || 'Baixa',
-  };
-}
-
-const GROUP_ORDER = [
-  ['rec', 'A. Receita recorrente mensal'],
-  ['pix', 'B. PIX recorrente validável'],
-  ['ent', 'C. Transferências entre contas'],
-  ['nrec', 'D. Entradas não recorrentes'],
-  ['atip', 'E. Créditos atípicos / excluídos'],
-];
-
-function groupDetail(lines) {
-  const groups = {};
-  GROUP_ORDER.forEach(([key, title]) => { groups[key] = { title, items: [] }; });
-  (lines || []).forEach((l) => {
-    const key = CLS_KEY[l.classification] || 'nrec';
-    groups[key].items.push({
-      d: l.date, desc: l.description || '—', inst: l.personType || '—',
-      val: num(l.amount), cls: key, cons: !!l.considered, obs: '',
-    });
-  });
-  return groups;
-}
+import { fmtBRL as fmt } from './lib/format';
+import { confTone, mapMonth, groupDetail } from './services/domain';
 
 // ─── Tela: Composição da renda verificada ───────────────────────────────────
 

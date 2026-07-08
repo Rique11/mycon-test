@@ -11,13 +11,11 @@ import { exportConsolidado, exportExtratoPdf } from '../services/exportExcel.js'
 import {
   PRODUCT_LABELS,
   POC_FILTERS,
-  createPocCaseFromForm,
   getQueueBusinessRules,
   getStatusMeta,
-  maskCpf,
-  normalizeCpf,
-  usePocCases,
-} from '../hooks/usePocCases.js';
+} from '../services/domain';
+import { maskCpf, onlyDigits } from '../lib/format';
+import { createPocCaseFromForm, usePocCases } from '../hooks/usePocCases.js';
 
 const EMPTY_FORM = {
   externalCaseId: '',
@@ -50,7 +48,7 @@ function getClientId(client) {
 }
 
 function isSameCpf(client, cpf) {
-  return normalizeCpf(client?.cpf) === normalizeCpf(cpf);
+  return onlyDigits(client?.cpf) === onlyDigits(cpf);
 }
 
 function isSameEmail(client, email) {
@@ -62,14 +60,14 @@ function isSameName(client, name) {
 }
 
 function findMatchingClient(clients, caseItem) {
-  const cpf = normalizeCpf(caseItem?.cpf);
+  const cpf = onlyDigits(caseItem?.cpf);
   return clients.find((client) => cpf && isSameCpf(client, cpf))
     || clients.find((client) => isSameEmail(client, caseItem?.email))
     || clients.find((client) => isSameName(client, caseItem?.name));
 }
 
 function getClientResolution(clients, caseItem) {
-  const byCpf = clients.filter((client) => normalizeCpf(caseItem?.cpf) && isSameCpf(client, caseItem?.cpf));
+  const byCpf = clients.filter((client) => onlyDigits(caseItem?.cpf) && isSameCpf(client, caseItem?.cpf));
   if (byCpf.length === 1) return { client: byCpf[0] };
   if (byCpf.length > 1) return { ambiguous: true, reason: 'CPF' };
 
@@ -90,7 +88,7 @@ async function resolveClientForCase(caseItem) {
     return { client, id: getClientId(client) || caseItem.clientId };
   }
 
-  const cpf = normalizeCpf(caseItem.cpf);
+  const cpf = onlyDigits(caseItem.cpf);
   const focusedResponse = await clientsApi.list({ q: cpf || caseItem.email || caseItem.name, page: 0, size: 20 });
   const focusedClients = getArrayFromPage(focusedResponse);
   let resolution = getClientResolution(focusedClients, caseItem);
@@ -117,7 +115,7 @@ async function resolveClientForCase(caseItem) {
 }
 
 async function createOrFindClient(form) {
-  const cpf = normalizeCpf(form.cpf);
+  const cpf = onlyDigits(form.cpf);
   const search = await clientsApi.list({ q: cpf, page: 0, size: 20 });
   const existing = getArrayFromPage(search).find((client) => isSameCpf(client, cpf));
 
@@ -752,7 +750,7 @@ function NewCaseModal({ defaultCaseId, existingCases = [], onClose, onCreated })
 
     const missing = required.find(([field]) => !String(form[field] || '').trim());
     if (missing) return missing[1];
-    if (normalizeCpf(form.cpf).length !== 11) return 'CPF deve ter 11 dígitos.';
+    if (onlyDigits(form.cpf).length !== 11) return 'CPF deve ter 11 dígitos.';
     const externalId = form.externalCaseId.trim().toLowerCase();
     const duplicate = existingCases.some((item) => String(item.externalCaseId || '').trim().toLowerCase() === externalId);
     if (duplicate) return 'Já existe um caso com esse ID externo na fila.';

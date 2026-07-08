@@ -6,10 +6,11 @@
 // (mycon-poc-excel-consolidado-V1-visual-padronizado.xlsx).
 
 import ExcelJS from 'exceljs';
+import { maskCpf as maskCpfShared } from '../lib/format';
+import { PRODUCT_LABELS } from './domain';
 
 const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-const PRODUCT_LABELS = { imovel: 'Imóvel', veiculo: 'Veículo', servico: 'Serviço' };
 
 const CLASS_LABEL = {
   REC: 'Receita recorrente',
@@ -95,9 +96,7 @@ function periodo(obj) {
 
 function maskCpf(cpf) {
   if (!cpf) return '—';
-  const d = String(cpf).replace(/\D/g, '');
-  if (d.length < 5) return '***';
-  return `***.***.${d.slice(-5, -2)}-${d.slice(-2)}`;
+  return maskCpfShared(cpf) || '—';
 }
 
 function slug(name) {

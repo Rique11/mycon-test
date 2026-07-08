@@ -1,104 +1,13 @@
+/**
+ * usePocCases.js — hook de estado e persistência (localStorage) dos casos da
+ * fila operacional da POC, com seeds de demonstração e criação de caso a
+ * partir do formulário. Regras de negócio puras vivem em services/domain.
+ */
+
 import React from 'react';
+import { maskCpf, onlyDigits } from '../lib/format';
 
 const STORAGE_KEY = 'mycon_poc_cases_v1';
-
-const RECENT_LINK_DAYS = 5;
-
-const CONSENT_ACCEPTED_STATUSES = new Set(['conectado', 'maisContas', 'semRenda', 'pronto']);
-
-export const QUEUE_ACTIONS = {
-  sendAndWait: 'Link gerado, enviar e aguardar consentimento',
-  investigateNoConsent: 'Verificar porque o cliente ainda nao consentiu',
-  accessOutputs: 'Consentimento aceito, pronto para acessar o extrato e excel',
-};
-
-export const PRODUCT_LABELS = {
-  imovel: 'Imóvel',
-  veiculo: 'Veículo',
-  servico: 'Serviço',
-};
-
-export const POC_STATUS = {
-  enviado: {
-    label: 'Consentimento enviado',
-    tone: 'blue',
-    owner: 'Cliente',
-    nextAction: QUEUE_ACTIONS.sendAndWait,
-    statement: 'Aguardando',
-    pending: 'Cliente ainda não consentiu.',
-  },
-  aguardando: {
-    label: 'Aguardando consentimento',
-    tone: 'warning',
-    owner: 'Cliente',
-    nextAction: QUEUE_ACTIONS.investigateNoConsent,
-    statement: 'Aguardando',
-    pending: 'Cliente ainda não consentiu.',
-  },
-  conectado: {
-    label: 'Open Finance conectado',
-    tone: 'purple',
-    owner: 'Lizard',
-    nextAction: QUEUE_ACTIONS.accessOutputs,
-    statement: 'Em coleta',
-    pending: 'Coleta Open Finance em andamento.',
-  },
-  maisContas: {
-    label: 'Mais contas necessárias',
-    tone: 'warning',
-    owner: 'Cliente',
-    nextAction: QUEUE_ACTIONS.accessOutputs,
-    statement: 'Aguardando',
-    pending: 'Falta conectar a conta onde recebe renda.',
-  },
-  semRenda: {
-    label: 'Conta sem renda identificada',
-    tone: 'danger',
-    owner: 'Cliente',
-    nextAction: QUEUE_ACTIONS.accessOutputs,
-    statement: 'Aguardando',
-    pending: 'Banco conectado não possui renda identificada.',
-  },
-  pronto: {
-    label: 'Extrato 12m pronto',
-    tone: 'success',
-    owner: 'Lizard',
-    nextAction: QUEUE_ACTIONS.accessOutputs,
-    statement: 'Pronto',
-    pending: null,
-  },
-  expirado: {
-    label: 'Expirado sem consentimento',
-    tone: 'danger',
-    owner: 'Mycon',
-    nextAction: QUEUE_ACTIONS.investigateNoConsent,
-    statement: 'Aguardando',
-    pending: 'Consentimento expirado.',
-  },
-  escalado: {
-    label: 'Escalado para Mycon',
-    tone: 'warning',
-    owner: 'Mycon',
-    nextAction: QUEUE_ACTIONS.investigateNoConsent,
-    statement: 'Aguardando',
-    pending: 'Caso escalado para Mycon.',
-  },
-  manual: {
-    label: 'Enviado para fluxo manual',
-    tone: 'neutral',
-    owner: 'Mycon',
-    nextAction: QUEUE_ACTIONS.investigateNoConsent,
-    statement: 'Aguardando',
-    pending: 'Fluxo manual por PDF.',
-  },
-};
-
-export const POC_FILTERS = [
-  { key: 'todos', label: 'Todos', statuses: null },
-  { key: 'aguardando', label: 'Consentimento pendente', statuses: ['enviado', 'aguardando', 'expirado'] },
-  { key: 'conectado', label: 'Consentimento aceito', statuses: ['conectado', 'maisContas', 'semRenda', 'pronto'] },
-  { key: 'pendencia', label: 'Excecoes operacionais', statuses: ['escalado', 'manual'] },
-];
 
 function addDays(date, days) {
   const next = new Date(date);
@@ -347,102 +256,14 @@ const SEED_CASES = [
 function mergeSeedCases(savedCases) {
   if (!Array.isArray(savedCases) || savedCases.length === 0) return SEED_CASES;
   const savedIds = new Set(savedCases.map((item) => item.id));
-  const savedCpfs = new Set(savedCases.map((item) => normalizeCpf(item.cpf)).filter(Boolean));
-  const missingSeeds = SEED_CASES.filter((item) => !savedIds.has(item.id) && !savedCpfs.has(normalizeCpf(item.cpf)));
+  const savedCpfs = new Set(savedCases.map((item) => onlyDigits(item.cpf)).filter(Boolean));
+  const missingSeeds = SEED_CASES.filter((item) => !savedIds.has(item.id) && !savedCpfs.has(onlyDigits(item.cpf)));
   return [...missingSeeds, ...savedCases];
-}
-
-export function normalizeCpf(value = '') {
-  return String(value).replace(/\D/g, '');
-}
-
-export function maskCpf(value = '') {
-  const digits = normalizeCpf(value);
-  if (digits.length !== 11) return value || '';
-  return `${digits.slice(0, 3)}.***.***-${digits.slice(9)}`;
-}
-
-export function getStatusMeta(status) {
-  return POC_STATUS[status] ?? POC_STATUS.aguardando;
-}
-
-function parseDate(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function getConsentStatusValue(caseItem) {
-  return String(
-    caseItem.consent?.status
-      || caseItem.consent?.state
-      || caseItem.consent?.consentStatus
-      || '',
-  ).toLowerCase();
-}
-
-export function isConsentAccepted(caseItem, options = {}) {
-  if (options.evidenceReady) return true;
-  if (CONSENT_ACCEPTED_STATUSES.has(caseItem.status)) return true;
-  const consentStatus = getConsentStatusValue(caseItem);
-  return ['accepted', 'authorized', 'authorised', 'autorizado', 'ativo', 'active'].some((value) =>
-    consentStatus.includes(value),
-  );
-}
-
-export function getConsentGeneratedAt(caseItem) {
-  return parseDate(
-    caseItem.consentCreatedAt
-      || caseItem.linkGeneratedAt
-      || caseItem.consent?.createdAt
-      || caseItem.consent?.created_at
-      || caseItem.createdAt,
-  );
-}
-
-export function getQueueBusinessRules(caseItem, options = {}) {
-  if (isConsentAccepted(caseItem, options)) {
-    return {
-      key: 'accepted',
-      statusLabel: 'Consentimento aceito',
-      tone: 'success',
-      owner: 'Lizard',
-      nextAction: QUEUE_ACTIONS.accessOutputs,
-      accepted: true,
-    };
-  }
-
-  const generatedAt = getConsentGeneratedAt(caseItem);
-  const now = parseDate(options.now) || new Date();
-  const ageInDays = generatedAt
-    ? Math.floor((now.getTime() - generatedAt.getTime()) / 86400000)
-    : null;
-  const isRecent = ageInDays == null || ageInDays <= RECENT_LINK_DAYS;
-
-  if (isRecent) {
-    return {
-      key: 'link-gerado',
-      statusLabel: 'Link gerado',
-      tone: 'blue',
-      owner: 'Cliente',
-      nextAction: QUEUE_ACTIONS.sendAndWait,
-      accepted: false,
-    };
-  }
-
-  return {
-    key: 'sem-consentimento',
-    statusLabel: 'Consentimento pendente',
-    tone: 'warning',
-    owner: 'Lizard',
-    nextAction: QUEUE_ACTIONS.investigateNoConsent,
-    accepted: false,
-  };
 }
 
 export function createPocCaseFromForm(form, apiResult = {}) {
   const now = new Date();
-  const cpf = normalizeCpf(form.cpf);
+  const cpf = onlyDigits(form.cpf);
 
   return {
     id: `${form.externalCaseId || `PC-${now.getTime()}`}`.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -450,7 +271,7 @@ export function createPocCaseFromForm(form, apiResult = {}) {
     name: form.name.trim(),
     cpf,
     cpfMasked: maskCpf(cpf),
-    phone: normalizeCpf(form.phone),
+    phone: onlyDigits(form.phone),
     email: form.email.trim(),
     group: form.group.trim(),
     quota: form.quota.trim(),
@@ -499,7 +320,11 @@ export function usePocCases() {
   const [cases, setCases] = React.useState(readInitialCases);
 
   React.useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cases));
+    } catch {
+      // Quota excedida ou modo privado: estado permanece apenas em memória.
+    }
   }, [cases]);
 
   const addCase = React.useCallback((newCase) => {
@@ -520,11 +345,13 @@ export function usePocCases() {
     setCases(SEED_CASES);
   }, []);
 
+  const nextCaseId = React.useMemo(() => getNextCaseId(cases), [cases]);
+
   return {
     cases,
     addCase,
     updateCase,
     resetCases,
-    nextCaseId: getNextCaseId(cases),
+    nextCaseId,
   };
 }

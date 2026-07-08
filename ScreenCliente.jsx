@@ -13,22 +13,7 @@ import { useClientData } from './hooks/useClientData.ts';
 import { useAuth } from './hooks/useAuth.ts';
 import { clientsApi } from './services/api';
 import { exportConsolidado, exportExtratoPdf } from './services/exportExcel.js';
-
-function fmtBRL(v) {
-  if (v == null) return 'R$ 0,00';
-  const num = typeof v === 'string' ? parseFloat(v) : v;
-  return 'R$ ' + num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function fmtDate(iso) {
-  if (!iso) return '—';
-  try {
-    const date = new Date(iso);
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
-  } catch {
-    return iso;
-  }
-}
+import { fmtBRL, fmtDate } from './lib/format';
 
 // Ícone "i" com tooltip exibido ao passar o mouse, explicando a métrica do card.
 function InfoTip({ text }) {
