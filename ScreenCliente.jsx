@@ -13,7 +13,8 @@ import AsyncScreen from './components/AsyncScreen.jsx';
 import { useClientData } from './hooks/useClientData';
 import { useAuth } from './hooks/useAuth';
 import { clientsApi } from './services/api';
-import { exportConsolidado, exportExtratoPdf } from './services/exportExcel.js';
+import { exportConsolidado } from './services/exportExcel.js';
+import { exportExtratoPdf } from './services/exportPdf.js';
 import { fmtBRL, fmtDate } from './lib/format';
 
 // Ícone "i" com tooltip exibido ao passar o mouse, explicando a métrica do card.

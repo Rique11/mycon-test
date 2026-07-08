@@ -5,11 +5,13 @@
 // recomendação/decisão. Estilo visual replicado do Excel de referência
 // (mycon-poc-excel-consolidado-V1-visual-padronizado.xlsx).
 
-import ExcelJS from 'exceljs';
-import { maskCpf as maskCpfShared } from '../lib/format';
+import { maskCpf as maskCpfShared, mesLabel, periodo, slug } from '../lib/format';
 import { PRODUCT_LABELS } from './domain';
 
-const MES_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+async function loadExcelJS() {
+  const mod = await import('exceljs');
+  return mod.default ?? mod;
+}
 
 
 const CLASS_LABEL = {
@@ -68,12 +70,6 @@ function avg(values) {
   return values.length ? sum(values) / values.length : 0;
 }
 
-function mesLabel(ym) {
-  if (!ym) return '';
-  const [y, m] = String(ym).split('-').map(Number);
-  return `${MES_ABBR[(m || 1) - 1]}/${String(y).slice(-2)}`;
-}
-
 // Datas do Open Finance chegam como 'YYYY-MM-DD'; construir em UTC preserva o
 // dia exibido no Excel independentemente do fuso horário de quem abrir o arquivo.
 function toExcelDate(value) {
@@ -89,19 +85,9 @@ function toExcelDateTime(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function periodo(obj) {
-  if (!obj?.fromYearMonth || !obj?.toYearMonth) return '—';
-  return `${mesLabel(obj.fromYearMonth)} a ${mesLabel(obj.toYearMonth)}`;
-}
-
 function maskCpf(cpf) {
   if (!cpf) return '—';
   return maskCpfShared(cpf) || '—';
-}
-
-function slug(name) {
-  return (name || 'cliente').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 function formatConfidence(value) {
@@ -311,8 +297,10 @@ async function downloadWorkbook(workbook, filename) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 // ── Construtores de aba ──────────────────────────────────────────────────────
@@ -594,91 +582,17 @@ function buildAuditoriaSheet(ws, { client, caseItem, insights, income, dataStatu
 // ── Extrato (tela do cliente) ─────────────────────────────────────────────────
 
 export async function exportExtrato(client, statement) {
+  const ExcelJS = await loadExcelJS();
   const workbook = new ExcelJS.Workbook();
   const ws = workbook.addWorksheet('Extrato_12m');
   buildExtratoSheet(ws, { statement, clientLine: `Cliente: ${client?.name || '—'} · Período: ${periodo(statement)}` });
   await downloadWorkbook(workbook, `extrato-${slug(client?.name)}-${statement?.toYearMonth || ''}.xlsx`);
 }
 
-export function exportExtratoPdf(client, statement) {
-  const rows = statement?.rows || [];
-  const title = `Extrato Open Finance 12m - ${client?.name || 'Cliente'}`;
-  const money = (value) =>
-    value != null ? (num(value) ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
-  const htmlRows = rows.map((r) => `
-    <tr>
-      <td>${r.date ? toExcelDate(r.date)?.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) || '' : ''}</td>
-      <td>${mesLabel(r.yearMonth)}</td>
-      <td>${r.account || ''}</td>
-      <td>${r.history || ''}</td>
-      <td>${r.type || ''}</td>
-      <td class="num">${money(r.inflow)}</td>
-      <td class="num">${money(r.outflow)}</td>
-      <td>${r.origin || 'Open Finance'}</td>
-    </tr>
-  `).join('');
-
-  const html = `
-    <!doctype html>
-    <html lang="pt-BR">
-      <head>
-        <meta charset="utf-8" />
-        <title>${title}</title>
-        <style>
-          @page { size: A4 landscape; margin: 14mm; }
-          body { font-family: Inter, Arial, sans-serif; color: #101A33; margin: 0; }
-          h1 { font-size: 20px; margin: 0 0 6px; }
-          .meta { font-size: 12px; color: #5F6F89; margin-bottom: 16px; }
-          table { width: 100%; border-collapse: collapse; font-size: 10px; }
-          th { text-align: left; padding: 7px 8px; border-bottom: 1px solid #DDE5F0; color: #5F6F89; text-transform: uppercase; font-size: 9px; }
-          td { padding: 7px 8px; border-bottom: 1px solid #E4EAF2; vertical-align: top; }
-          .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-        </style>
-      </head>
-      <body>
-        <h1>${title}</h1>
-        <div class="meta">
-          CPF: ${maskCpf(client?.cpf)} · Período: ${periodo(statement)} · Gerado em ${new Date().toLocaleString('pt-BR')}
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Mês</th>
-              <th>Conta</th>
-              <th>Histórico</th>
-              <th>Tipo</th>
-              <th>Entrada</th>
-              <th>Saída</th>
-              <th>Origem</th>
-            </tr>
-          </thead>
-          <tbody>${htmlRows || '<tr><td colspan="8">Sem lançamentos disponíveis.</td></tr>'}</tbody>
-        </table>
-        <script>window.onload = () => { window.print(); };</script>
-      </body>
-    </html>
-  `;
-
-  const popup = window.open('', '_blank');
-  if (!popup) {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `extrato-${slug(client?.name)}-${statement?.toYearMonth || ''}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    return;
-  }
-  popup.document.open();
-  popup.document.write(html);
-  popup.document.close();
-}
-
 // ── Dossiê consolidado (botão Exportar Excel) ─────────────────────────────────
 
-export function buildConsolidadoWorkbook({ client, caseItem, insights, income, statement, dataStatus = 'real' }) {
+export async function buildConsolidadoWorkbook({ client, caseItem, insights, income, statement, dataStatus = 'real' }) {
+  const ExcelJS = await loadExcelJS();
   const workbook = new ExcelJS.Workbook();
 
   buildResumoSheet(workbook.addWorksheet('01_Resumo'), { client, caseItem, insights, income, dataStatus });
@@ -692,7 +606,7 @@ export function buildConsolidadoWorkbook({ client, caseItem, insights, income, s
 }
 
 export async function exportConsolidado({ client, caseItem, insights, income, statement, dataStatus = 'real' }) {
-  const workbook = buildConsolidadoWorkbook({ client, caseItem, insights, income, statement, dataStatus });
+  const workbook = await buildConsolidadoWorkbook({ client, caseItem, insights, income, statement, dataStatus });
   const suffix = dataStatus === 'demo' ? '-demonstrativo' : '';
   await downloadWorkbook(workbook, `dossie-${slug(client?.name)}-${income?.toYearMonth || ''}${suffix}.xlsx`);
 }

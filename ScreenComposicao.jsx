@@ -14,7 +14,8 @@ import { useIncomeComposition } from './hooks/useIncomeComposition';
 import { useClientData } from './hooks/useClientData';
 import { useAuth } from './hooks/useAuth';
 import { clientsApi } from './services/api';
-import { exportConsolidado, exportExtratoPdf } from './services/exportExcel.js';
+import { exportConsolidado } from './services/exportExcel.js';
+import { exportExtratoPdf } from './services/exportPdf.js';
 import { fmtBRL as fmt } from './lib/format';
 import { confTone, mapMonth, groupDetail } from './services/domain';
 
