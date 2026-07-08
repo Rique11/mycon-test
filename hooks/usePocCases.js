@@ -112,13 +112,13 @@ function evidenceHashFromCaseId(caseId) {
 
 const SEED_CASES = [
   {
-    id: 'pc-2051-romulo-pereira',
+    id: 'pc-2051-cliente-teste',
     externalCaseId: 'PC-2051',
-    name: 'romulo pereira',
-    cpf: '52914468890',
-    cpfMasked: '529.***.***-90',
-    phone: '11990010011',
-    email: 'romulohsp@gmail.com',
+    name: 'Cliente Teste',
+    cpf: '12345678900',
+    cpfMasked: '123.***.***-00',
+    phone: '11999990000',
+    email: 'cliente.teste@example.com',
     group: '—',
     quota: '—',
     product: 'imovel',
@@ -130,7 +130,7 @@ const SEED_CASES = [
     createdAt: '2026-06-28T12:00:00.000Z',
     consentLink: '',
     clientId: null,
-    notes: 'Cliente real da aba Clientes adicionado para validar abertura do RaioX pela fila operacional.',
+    notes: 'Caso sintético para validar abertura do RaioX pela fila operacional.',
   },
   {
     id: 'pc-2041',
@@ -528,3 +528,4 @@ export function usePocCases() {
     nextCaseId: getNextCaseId(cases),
   };
 }
+                    

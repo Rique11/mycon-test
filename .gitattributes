@@ -1,0 +1,8 @@
+# Normalização de fim de linha: LF no repositório, checkout conforme core.autocrlf local.
+* text=auto
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
