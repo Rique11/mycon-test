@@ -528,4 +528,3 @@ export function usePocCases() {
     nextCaseId: getNextCaseId(cases),
   };
 }
-                    

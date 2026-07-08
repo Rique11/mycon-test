@@ -12,7 +12,7 @@ import Sidebar from './components/Sidebar.jsx';
 import { useIncomeComposition } from './hooks/useIncomeComposition.ts';
 import { useClientData } from './hooks/useClientData.ts';
 import { useAuth } from './hooks/useAuth.ts';
-import { clientsApi } from './services/api.js';
+import { clientsApi } from './services/api';
 import { exportConsolidado, exportExtratoPdf } from './services/exportExcel.js';
 
 // ─── Helpers de formatação e mapeamento backend → UI ────────────────────────

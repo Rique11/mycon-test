@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { clientsApi, ApiError } from '../services/api.js';
+import { clientsApi, ApiError } from '../services/api';
 
 export function useIncomeComposition(clientId: string | null, params?: { from?: string; to?: string }) {
   const [data, setData] = React.useState<any | null>(null);

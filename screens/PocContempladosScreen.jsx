@@ -6,7 +6,7 @@ import Badge from '../components/Badge.jsx';
 import Card from '../components/Card.jsx';
 import Button from '../components/Button.jsx';
 import StepNumber from '../components/StepNumber.jsx';
-import { ApiError, clientsApi } from '../services/api.js';
+import { ApiError, clientsApi } from '../services/api';
 import { exportConsolidado, exportExtratoPdf } from '../services/exportExcel.js';
 import {
   PRODUCT_LABELS,

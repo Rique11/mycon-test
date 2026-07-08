@@ -5,7 +5,7 @@ import React from 'react';
 import { TOKENS, SHADOWS } from '../tokens.js';
 import Button from '../components/Button.jsx';
 import logoLizard from '../assets/logo-app-icon.png';
-import { authApi, setTokens, ApiError } from '../services/api.js';
+import { authApi, setTokens, ApiError } from '../services/api';
 
 export default function LoginScreen() {
   const [email, setEmail] = React.useState('');

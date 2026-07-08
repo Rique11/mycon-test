@@ -3,8 +3,7 @@
  */
 
 import React from 'react';
-import { getAccessToken, setTokens, clearTokens, AUTH_TOKENS_EVENT } from '../services/api.js';
-import type { TokenPair } from '../services/api';
+import { getAccessToken, setTokens, clearTokens, AUTH_TOKENS_EVENT } from '../services/api';
 
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = React.useState(() => {

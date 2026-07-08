@@ -3,8 +3,7 @@
  */
 
 import React from 'react';
-import { clientsApi, ApiError } from '../services/api.js';
-import type { ClientResponse, ClientInsightsResponse } from '../services/api';
+import { clientsApi, ApiError, type ClientResponse, type ClientInsightsResponse } from '../services/api';
 
 export interface ClientData {
   client: ClientResponse | null;

@@ -11,7 +11,7 @@ import Avatar from './components/Avatar.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import { useClientData } from './hooks/useClientData.ts';
 import { useAuth } from './hooks/useAuth.ts';
-import { clientsApi } from './services/api.js';
+import { clientsApi } from './services/api';
 import { exportConsolidado, exportExtratoPdf } from './services/exportExcel.js';
 
 function fmtBRL(v) {
