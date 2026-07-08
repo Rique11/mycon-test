@@ -14,7 +14,9 @@ const TONE = {
 };
 
 function initials(name) {
-  return name.split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  const parts = String(name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return parts.slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
 export default function Avatar({ name, size = 36, tone = 'brand' }) {
@@ -32,10 +34,4 @@ export default function Avatar({ name, size = 36, tone = 'brand' }) {
       fontSize: size * 0.36,
       fontWeight: 600,
       flexShrink: 0,
-      letterSpacing: -0.3,
-      userSelect: 'none',
-    }}>
-      {initials(name)}
-    </div>
-  );
-}
+      l

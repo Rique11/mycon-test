@@ -9,6 +9,7 @@ import Badge from './components/Badge.jsx';
 import Card from './components/Card.jsx';
 import StepNumber from './components/StepNumber.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import AsyncScreen from './components/AsyncScreen.jsx';
 import { useIncomeComposition } from './hooks/useIncomeComposition';
 import { useClientData } from './hooks/useClientData';
 import { useAuth } from './hooks/useAuth';
@@ -22,40 +23,21 @@ import { confTone, mapMonth, groupDetail } from './services/domain';
 export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useIncomeComposition(clientId);
-  const { data: clientData } = useClientData(clientId);
+  const { data: clientData, loading: clientLoading } = useClientData(clientId);
+  const [exportError, setExportError] = React.useState(null);
 
-  if (loading) {
+  if (loading || error) {
     return (
-      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-        <Sidebar activeItem="Clientes" onNavigate={onNavigate} onLogout={logout} />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.text }}>Carregando composição da renda...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-        <Sidebar activeItem="Clientes" onNavigate={onNavigate} onLogout={logout} />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ maxWidth: 360, textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.danger, marginBottom: 12 }}>
-              Erro ao carregar composição
-            </div>
-            <p style={{ fontSize: 14, color: TOKENS.text, marginBottom: 20 }}>{error.message}</p>
-            <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}>
-              <button onClick={retry} className="lz-btn-primary" style={{ padding: '10px 16px', fontSize: 13 }}>
-                Tentar novamente
-              </button>
-              <button onClick={onVoltar} className="lz-btn-ghost" style={{ padding: '10px 16px', fontSize: 13, color: TOKENS.text }}>
-                Voltar para análise
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <AsyncScreen
+        loading={loading}
+        error={error}
+        loadingMessage="Carregando composição da renda..."
+        errorTitle="Erro ao carregar composição"
+        onRetry={retry}
+        secondaryLabel="Voltar para análise"
+        onSecondary={onVoltar}
+        sidebarProps={{ activeItem: 'Clientes', onNavigate, onLogout: logout }}
+      />
     );
   }
 
@@ -72,7 +54,9 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'auto' }}>
         <CompHeader
           onVoltar={onVoltar}
+          exportDisabled={clientLoading}
           onExportExcel={async () => {
+            setExportError(null);
             try {
               const statement = await clientsApi.getStatement(clientId);
               await exportConsolidado({
@@ -83,17 +67,29 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
               });
             } catch (e) {
               console.error('Falha ao exportar dossiê', e);
+              setExportError('Não foi possível exportar o dossiê agora. Tente novamente.');
             }
           }}
           onExportPdf={async () => {
+            setExportError(null);
             try {
               const statement = await clientsApi.getStatement(clientId);
               exportExtratoPdf(clientData?.client, statement);
             } catch (e) {
               console.error('Falha ao exportar extrato PDF', e);
+              setExportError('Não foi possível exportar o extrato em PDF agora. Tente novamente.');
             }
           }}
         />
+        {exportError && (
+          <div role="alert" style={{
+            margin: '12px 32px 0', padding: '10px 14px', borderRadius: 8,
+            background: TOKENS.dangerSoft, border: `1px solid ${TOKENS.danger}33`,
+            color: TOKENS.danger, fontSize: 12.5, fontWeight: 500,
+          }}>
+            {exportError}
+          </div>
+        )}
         {meses.length === 0 ? (
           <div style={{ padding: '48px 32px' }}>
             <Card>
@@ -122,7 +118,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
 }
 
 // ───────── Header (with breadcrumb + export actions) ─────────
-function CompHeader({ onVoltar, onExportExcel, onExportPdf }) {
+function CompHeader({ onVoltar, onExportExcel, onExportPdf, exportDisabled = false }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
@@ -150,17 +146,23 @@ function CompHeader({ onVoltar, onExportExcel, onExportPdf }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <button onClick={onExportExcel} className="lz-btn-ghost" style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: TOKENS.text,
-        }}>
+        <button onClick={onExportExcel} disabled={exportDisabled}
+          title={exportDisabled ? 'Aguardando dados do cliente...' : undefined}
+          className="lz-btn-ghost" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: TOKENS.text,
+            opacity: exportDisabled ? 0.5 : 1, cursor: exportDisabled ? 'wait' : 'pointer',
+          }}>
           <Icon d={I.download} size={15} stroke={TOKENS.success} strokeWidth={1.8} />
           Exportar Excel
         </button>
-        <button onClick={onExportPdf} className="lz-btn-ghost" style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: TOKENS.text,
-        }}>
+        <button onClick={onExportPdf} disabled={exportDisabled}
+          title={exportDisabled ? 'Aguardando dados do cliente...' : undefined}
+          className="lz-btn-ghost" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: TOKENS.text,
+            opacity: exportDisabled ? 0.5 : 1, cursor: exportDisabled ? 'wait' : 'pointer',
+          }}>
           <Icon d={I.doc} size={15} stroke={TOKENS.danger} strokeWidth={1.8} />
           Exportar PDF
         </button>
@@ -349,7 +351,7 @@ function DetalhamentoMeses({ meses, detailByMonth }) {
             mes={m}
             lines={detailByMonth[m.id]}
             open={open[m.id]}
-            onToggle={() => setOpen({ ...open, [m.id]: !open[m.id] })}
+            onToggle={() => setOpen((current) => ({ ...current, [m.id]: !current[m.id] }))}
           />
         ))}
       </div>
@@ -357,8 +359,8 @@ function DetalhamentoMeses({ meses, detailByMonth }) {
   );
 }
 
-function MesDetail({ mes, lines, open, onToggle }) {
-  const groups = groupDetail(lines);
+const MesDetail = React.memo(function MesDetail({ mes, lines, open, onToggle }) {
+  const groups = React.useMemo(() => groupDetail(lines), [lines]);
   return (
     <div className="lz-card" id={mes.id} style={{ overflow: 'hidden' }}>
       <button onClick={onToggle} style={{
@@ -394,7 +396,7 @@ function MesDetail({ mes, lines, open, onToggle }) {
       )}
     </div>
   );
-}
+});
 
 function DetailGroup({ title, items }) {
   return (
@@ -545,12 +547,4 @@ function LeituraOperacional({ onVoltar }) {
                 onClick={onVoltar}
                 style={{ padding: '9px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}
               >
-                Voltar para análise do cliente
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+     

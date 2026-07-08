@@ -9,6 +9,7 @@ import Card from './components/Card.jsx';
 import StepNumber from './components/StepNumber.jsx';
 import Avatar from './components/Avatar.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import AsyncScreen from './components/AsyncScreen.jsx';
 import { useClientData } from './hooks/useClientData';
 import { useAuth } from './hooks/useAuth';
 import { clientsApi } from './services/api';
@@ -47,53 +48,32 @@ function InfoTip({ text }) {
 }
 
 // ───────── Tela principal ─────────
-export default function ScreenCliente({ clientId, onVoltar, onVerComposicao, onNavigate, backLabel = 'Voltar para clientes' }) {
+export default function ScreenCliente({
+  clientId,
+  onVoltar,
+  onVerComposicao,
+  onNavigate,
+  onAprovar,
+  onRevisaoManual,
+  backLabel = 'Voltar para clientes',
+}) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useClientData(clientId);
+  const [exportError, setExportError] = React.useState(null);
 
-  if (loading) {
+  if (loading || error) {
     return (
-      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.text, marginBottom: 8 }}>
-            Carregando dados...
-          </div>
-          <div style={{ fontSize: 14, color: TOKENS.textMuted }}>
-            Aguarde enquanto buscamos as informações do cliente
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ maxWidth: 360, textAlign: 'center' }}>
-          <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.danger, marginBottom: 12 }}>
-            Erro ao carregar dados
-          </div>
-          <p style={{ fontSize: 14, color: TOKENS.text, marginBottom: 20, lineHeight: 1.5 }}>
-            {error.message}
-          </p>
-          <div style={{ display: 'flex', gap: 12, flexDirection: 'column' }}>
-            <button
-              onClick={retry}
-              className="lz-btn-primary"
-              style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500 }}
-            >
-              Tentar novamente
-            </button>
-            <button
-              onClick={onVoltar}
-              className="lz-btn-ghost"
-              style={{ padding: '10px 16px', fontSize: 13, fontWeight: 500, color: TOKENS.text }}
-            >
-              Voltar para lista
-            </button>
-          </div>
-        </div>
-      </div>
+      <AsyncScreen
+        loading={loading}
+        error={error}
+        loadingMessage="Carregando dados..."
+        loadingSub="Aguarde enquanto buscamos as informações do cliente"
+        errorTitle="Erro ao carregar dados"
+        onRetry={retry}
+        secondaryLabel="Voltar para lista"
+        onSecondary={onVoltar}
+        sidebarProps={{ activeItem: 'Clientes', onNavigate, onLogout: logout }}
+      />
     );
   }
 
@@ -147,6 +127,7 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao, onN
           onVoltar={onVoltar}
           backLabel={backLabel}
           onExportExcel={async () => {
+            setExportError(null);
             try {
               const [income, statement] = await Promise.all([
                 clientsApi.getIncomeComposition(clientId),
@@ -160,24 +141,42 @@ export default function ScreenCliente({ clientId, onVoltar, onVerComposicao, onN
               });
             } catch (e) {
               console.error('Falha ao exportar dossiê', e);
+              setExportError('Não foi possível exportar o dossiê agora. Tente novamente.');
             }
           }}
           onExportPdf={async () => {
+            setExportError(null);
             try {
               const statement = await clientsApi.getStatement(clientId);
               exportExtratoPdf(client, statement);
             } catch (e) {
               console.error('Falha ao exportar extrato PDF', e);
+              setExportError('Não foi possível exportar o extrato em PDF agora. Tente novamente.');
             }
           }}
         />
+        {exportError && (
+          <div role="alert" style={{
+            margin: '12px 32px 0', padding: '10px 14px', borderRadius: 8,
+            background: TOKENS.dangerSoft, border: `1px solid ${TOKENS.danger}33`,
+            color: TOKENS.danger, fontSize: 12.5, fontWeight: 500,
+          }}>
+            {exportError}
+          </div>
+        )}
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px 48px' }}>
           <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 20, paddingTop: 24 }}>
             <ContextoCliente cliente={clienteFormatado} />
             <ResumoVisual cliente={clienteFormatado} insights={insights} />
             <Evidencias cliente={clienteFormatado} mesesRenda={mesesRenda} onVerComposicao={onVerComposicao} />
             <ExplicacaoOperador cliente={clienteFormatado} insights={insights} />
-            <DecisaoSugerida cliente={clienteFormatado} insights={insights} />
+            <DecisaoSugerida
+              cliente={clienteFormatado}
+              insights={insights}
+              onAprovar={onAprovar}
+              onRevisaoManual={onRevisaoManual}
+              onDetalhes={onVerComposicao}
+            />
           </div>
         </div>
       </div>
@@ -269,7 +268,7 @@ function ContextoCliente({ cliente }) {
             <div style={{ fontSize: 10.5, color: TOKENS.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 600 }}>
               Status
             </div>
-            <Badge tone="warning" size="sm" dot>{cliente.status}</Badge>
+            <Badge tone={cliente.status === 'ativo' ? 'success' : 'warning'} size="sm" dot>{cliente.status}</Badge>
           </div>
 
           {/* Open Finance */}
@@ -318,8 +317,8 @@ function ResumoVisual({ cliente, insights }) {
   const kpis = [
     {
       label: 'Renda verificada', value: fmtBRL(cliente.rendaVerificada),
-      sub: 'Mediana semestral (6m)', tone: 'blue', icon: I.wallet, mono: true,
-      info: 'Mediana da renda mensal recorrente (pagadores presentes em ≥4 meses, via Open Finance) nos últimos 6 meses completos.',
+      sub: 'Média mensal (3m)', tone: 'blue', icon: I.wallet, mono: true,
+      info: 'Média da renda mensal recorrente (pagadores presentes em ≥4 meses, via Open Finance) nos últimos 3 meses completos.',
     },
     {
       label: 'Fonte de renda', value: cliente.fontes > 0 ? 'Detectada' : 'Não detectada',
@@ -424,12 +423,12 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
           <EvidKpi label="Salário recorrente" value={cliente.fontes > 0 ? 'Sim' : 'Não'} sub={cliente.fontes > 0 ? 'Depósitos em dia útil' : 'Não detectado'} tone={cliente.fontes > 0 ? 'success' : 'warning'}
             info="Há crédito de pagador recorrente (presente em ≥4 meses) identificado nos lançamentos do Open Finance." />
-          <EvidKpi label="Renda semestral" value={fmtBRL(cliente.rendaVerificada)} sub="Mediana 6 meses" mono
-            info="Mediana da renda mensal validada nos últimos 6 meses completos (semestral)." />
-          <EvidKpi label="Renda anual" value={fmtBRL(cliente.rendaDeclarada)} sub="Mediana 12 meses" tone="blue" mono
-            info="Mediana da renda mensal validada nos últimos 12 meses completos (anual)." />
-          <EvidKpi label="Atípicos" value={fmtBRL(cliente.atipicos)} sub="Excluídos da média" tone="neutral" mono
-            info="Créditos atípicos (ex.: rendimento/resgate de investimento) que não compõem a renda recorrente." />
+          <EvidKpi label="Renda trimestral" value={fmtBRL(cliente.rendaVerificada)} sub="Média mensal (3m)" mono
+            info="Média da renda mensal validada nos últimos 3 meses completos." />
+          <EvidKpi label="Renda anual" value={fmtBRL(cliente.rendaDeclarada)} sub="Média mensal (12m)" tone="blue" mono
+            info="Média da renda mensal validada nos últimos 12 meses completos (anual)." />
+          <EvidKpi label="Atípicos" value="—" sub="Sem dado no período" tone="neutral" mono
+            info="Créditos atípicos (ex.: rendimento/resgate de investimento) que não compõem a renda recorrente. Detalhe disponível na composição da renda." />
         </div>
 
         {/* Chart */}
@@ -523,7 +522,7 @@ function IncomeChart({ data }) {
         const y = pad.top + cH - barH;
         const label = d.v > 0 ? `R$ ${Math.round(d.v / 1000)} mil` : '';
         return (
-          <g key={d.m}>
+          <g key={`${d.m}-${i}`}>
             <rect x={x} y={y} width={barW} height={barH} rx={3}
               fill={TOKENS.primary} opacity={0.85} />
             <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
@@ -542,8 +541,8 @@ function IncomeChart({ data }) {
 // ───────── 4. Explicação para o operador ─────────
 function ExplicacaoOperador({ cliente, insights }) {
   const rows = [
-    { l: 'Renda verificada (6m · semestral)', v: fmtBRL(cliente.rendaVerificada), mono: true, color: TOKENS.primary },
-    { l: 'Renda verificada (12m · anual)',    v: fmtBRL(cliente.rendaDeclarada),  mono: true, color: TOKENS.text },
+    { l: 'Renda verificada (3m · média)',  v: fmtBRL(cliente.rendaVerificada), mono: true, color: TOKENS.primary },
+    { l: 'Renda verificada (12m · média)', v: fmtBRL(cliente.rendaDeclarada),  mono: true, color: TOKENS.text },
     { l: 'Débito/Renda',          v: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—', mono: true, color: TOKENS.warning },
     { l: 'Capacidade de poupança', v: insights?.savingsCapacity3m != null ? fmtBRL(insights.savingsCapacity3m) : '—', mono: true, color: TOKENS.success },
   ];
@@ -585,7 +584,7 @@ function ExplicacaoOperador({ cliente, insights }) {
             </div>
             <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.7, textWrap: 'pretty' }}>
               {cliente.fontes > 0
-                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A renda verificada é de <strong>{fmtBRL(cliente.rendaVerificada)}</strong>/mês (mediana semestral), com mediana anual de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>.</>
+                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A renda verificada é de <strong>{fmtBRL(cliente.rendaVerificada)}</strong>/mês (média dos últimos 3 meses), com média anual de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>/mês.</>
                 : <>Não identificamos <strong>renda recorrente</strong> que comprove renda nos créditos do Open Finance (nenhum pagador com repetição mensal estável no período). A composição detalhada lista os créditos classificados.</>}
             </p>
           </div>
@@ -596,7 +595,7 @@ function ExplicacaoOperador({ cliente, insights }) {
 }
 
 // ───────── 5. Decisão sugerida ─────────
-function DecisaoSugerida({ cliente, insights }) {
+function DecisaoSugerida({ cliente, insights, onAprovar, onRevisaoManual, onDetalhes }) {
   const aprovado = cliente.fontes > 0;
   const recomendacao = aprovado ? 'Aprovar comprovação' : 'Solicitar complemento';
   const tone = aprovado ? 'success' : 'warning';
@@ -638,21 +637,41 @@ function DecisaoSugerida({ cliente, insights }) {
 
           {/* Botões */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button className="lz-btn-primary" style={{
-              padding: '11px 20px', fontSize: 13.5, fontWeight: 600,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            }}>
+            <button
+              onClick={onAprovar}
+              disabled={!onAprovar}
+              title={!onAprovar ? 'Ação indisponível nesta POC' : undefined}
+              className="lz-btn-primary"
+              style={{
+                padding: '11px 20px', fontSize: 13.5, fontWeight: 600,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                opacity: onAprovar ? 1 : 0.5, cursor: onAprovar ? 'pointer' : 'not-allowed',
+              }}
+            >
               <Icon d={I.check} size={15} stroke="#fff" strokeWidth={2.5} />
               {recomendacao}
             </button>
-            <button className="lz-btn-ghost" style={{
-              padding: '10px 20px', fontSize: 13, fontWeight: 500, color: TOKENS.text,
-            }}>
+            <button
+              onClick={onRevisaoManual}
+              disabled={!onRevisaoManual}
+              title={!onRevisaoManual ? 'Ação indisponível nesta POC' : undefined}
+              className="lz-btn-ghost"
+              style={{
+                padding: '10px 20px', fontSize: 13, fontWeight: 500, color: TOKENS.text,
+                opacity: onRevisaoManual ? 1 : 0.5, cursor: onRevisaoManual ? 'pointer' : 'not-allowed',
+              }}
+            >
               Enviar para revisão manual
             </button>
-            <button className="lz-btn-ghost" style={{
-              padding: '10px 20px', fontSize: 13, fontWeight: 500, color: TOKENS.text,
-            }}>
+            <button
+              onClick={onDetalhes}
+              disabled={!onDetalhes}
+              className="lz-btn-ghost"
+              style={{
+                padding: '10px 20px', fontSize: 13, fontWeight: 500, color: TOKENS.text,
+                opacity: onDetalhes ? 1 : 0.5, cursor: onDetalhes ? 'pointer' : 'not-allowed',
+              }}
+            >
               Ver mais detalhes
             </button>
           </div>
@@ -682,21 +701,4 @@ function DecisaoSugerida({ cliente, insights }) {
               { l: 'Status',            v: cliente.status },
               { l: 'Renda verificada',  v: fmtBRL(cliente.rendaVerificada), mono: true },
               { l: 'Débito/Renda',      v: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—', mono: true },
-            ].map((f, i, arr) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-                gap: 12, paddingBottom: 10,
-                borderBottom: i < arr.length - 1 ? `1px solid ${TOKENS.border}` : 'none',
-              }}>
-                <span style={{ fontSize: 12, color: TOKENS.textMuted, flexShrink: 0 }}>{f.l}</span>
-                <span className={f.mono ? 'num' : ''} style={{ fontSize: 12.5, fontWeight: 500, color: TOKENS.text, textAlign: 'right' }}>
-                  {f.v}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
+            ].map((f, i, arr) =>

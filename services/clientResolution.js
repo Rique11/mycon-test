@@ -1,0 +1,95 @@
+/**
+ * clientResolution.js — resolução do cliente da API Akropoli correspondente a um
+ * caso da POC (busca por CPF, e-mail ou nome) e criação do cliente quando necessário.
+ *
+ * Limitação conhecida: o fallback de busca lista apenas os 100 primeiros clientes
+ * e casa por nome — homônimos podem vincular o caso ao cliente errado.
+ * O fix correto é um endpoint de busca por CPF na API.
+ */
+
+import { clientsApi } from './api';
+import { onlyDigits } from '../lib/format';
+
+function getArrayFromPage(response) {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.content)) return response.content;
+  return [];
+}
+
+export function getClientId(client) {
+  return client?.id ?? client?.clientId ?? client?.uuid ?? null;
+}
+
+function isSameCpf(client, cpf) {
+  return onlyDigits(client?.cpf) === onlyDigits(cpf);
+}
+
+function isSameEmail(client, email) {
+  return email && String(client?.email || '').toLowerCase() === String(email).toLowerCase();
+}
+
+function isSameName(client, name) {
+  return name && String(client?.name || '').trim().toLowerCase() === String(name).trim().toLowerCase();
+}
+
+function getClientResolution(clients, caseItem) {
+  const byCpf = clients.filter((client) => onlyDigits(caseItem?.cpf) && isSameCpf(client, caseItem?.cpf));
+  if (byCpf.length === 1) return { client: byCpf[0] };
+  if (byCpf.length > 1) return { ambiguous: true, reason: 'CPF' };
+
+  const byEmail = clients.filter((client) => isSameEmail(client, caseItem?.email));
+  if (byEmail.length === 1) return { client: byEmail[0] };
+  if (byEmail.length > 1) return { ambiguous: true, reason: 'e-mail' };
+
+  const byName = clients.filter((client) => isSameName(client, caseItem?.name));
+  if (byName.length === 1) return { client: byName[0] };
+  if (byName.length > 1) return { ambiguous: true, reason: 'nome' };
+
+  return { client: null };
+}
+
+export async function resolveClientForCase(caseItem) {
+  if (caseItem.clientId) {
+    const client = await clientsApi.getById(caseItem.clientId);
+    return { client, id: getClientId(client) || caseItem.clientId };
+  }
+
+  const cpf = onlyDigits(caseItem.cpf);
+  const focusedResponse = await clientsApi.list({ q: cpf || caseItem.email || caseItem.name, page: 0, size: 20 });
+  const focusedClients = getArrayFromPage(focusedResponse);
+  let resolution = getClientResolution(focusedClients, caseItem);
+
+  if (!resolution.client && !resolution.ambiguous) {
+    const allResponse = await clientsApi.list({ page: 0, size: 100 });
+    resolution = getClientResolution(getArrayFromPage(allResponse), caseItem);
+  }
+
+  if (resolution.ambiguous) {
+    const error = new Error(`Mais de um cliente encontrado pelo mesmo ${resolution.reason}.`);
+    error.code = 'ambiguous';
+    throw error;
+  }
+
+  const id = getClientId(resolution.client);
+  if (!id) {
+    const error = new Error('Cliente não encontrado na aba Clientes.');
+    error.code = 'not_found';
+    throw error;
+  }
+
+  return { client: resolution.client, id };
+}
+
+export async function createOrFindClient(form) {
+  const cpf = onlyDigits(form.cpf);
+  const search = await clientsApi.list({ q: cpf, page: 0, size: 20 });
+  const existing = getArrayFromPage(search).find((client) => isSameCpf(client, cpf));
+
+  if (existing) return existing;
+
+  return clientsApi.create({
+    name: form.name.trim(),
+    email: form.email.trim(),
+    cpf,
+  });
+}

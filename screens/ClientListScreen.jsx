@@ -7,51 +7,32 @@ import Icon from '../components/Icon.jsx';
 import Badge from '../components/Badge.jsx';
 import Card from '../components/Card.jsx';
 import Sidebar from '../components/Sidebar.jsx';
+import AsyncScreen from '../components/AsyncScreen.jsx';
 import { useClientList } from '../hooks/useClientList';
 
 export default function ClientListScreen({ onSelectClient, onLogout, activeItem = 'Clientes', onNavigate }) {
   const { clients, loading, error, retry } = useClientList();
   const [searchTerm, setSearchTerm] = React.useState('');
 
-  const filtered = clients.filter(c =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.cpf.includes(searchTerm)
-  );
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-        <Sidebar activeItem={activeItem} onNavigate={onNavigate} onLogout={onLogout} />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.text, marginBottom: 8 }}>
-              Carregando clientes...
-            </div>
-          </div>
-        </div>
-      </div>
+  const filtered = React.useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return clients.filter(c =>
+      (c.name ?? '').toLowerCase().includes(term) ||
+      (c.email ?? '').toLowerCase().includes(term) ||
+      (c.cpf ?? '').includes(searchTerm)
     );
-  }
+  }, [clients, searchTerm]);
 
-  if (error) {
+  if (loading || error) {
     return (
-      <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
-        <Sidebar activeItem={activeItem} onNavigate={onNavigate} onLogout={onLogout} />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ maxWidth: 360, textAlign: 'center' }}>
-            <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.danger, marginBottom: 12 }}>
-              Erro ao carregar clientes
-            </div>
-            <p style={{ fontSize: 14, color: TOKENS.text, marginBottom: 20 }}>
-              {error.message}
-            </p>
-            <button onClick={retry} className="lz-btn-primary" style={{ padding: '10px 16px', fontSize: 13 }}>
-              Tentar novamente
-            </button>
-          </div>
-        </div>
-      </div>
+      <AsyncScreen
+        loading={loading}
+        error={error}
+        loadingMessage="Carregando clientes..."
+        errorTitle="Erro ao carregar clientes"
+        onRetry={retry}
+        sidebarProps={{ activeItem, onNavigate, onLogout }}
+      />
     );
   }
 
@@ -122,7 +103,6 @@ export default function ClientListScreen({ onSelectClient, onLogout, activeItem 
                       padding: '16px',
                       transition: 'all 0.2s',
                       cursor: 'pointer',
-                      ':hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.1)' },
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.boxShadow = `0 4px 12px ${TOKENS.primary}20`;
@@ -147,7 +127,7 @@ export default function ClientListScreen({ onSelectClient, onLogout, activeItem 
                           fontSize: 14,
                           flexShrink: 0,
                         }}>
-                          {client.name.charAt(0).toUpperCase()}
+                          {(client.name ?? '?').charAt(0).toUpperCase() || '?'}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text, marginBottom: 2 }}>
