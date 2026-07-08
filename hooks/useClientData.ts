@@ -1,9 +1,11 @@
 /**
- * useClientData.ts — Hook para carregar dados de cliente e insights da API.
+ * useClientData.ts — Hook para carregar dados de cliente e insights da API,
+ * com cancelamento automático quando o clientId muda ou o componente desmonta.
  */
 
 import React from 'react';
-import { clientsApi, ApiError, type ClientResponse, type ClientInsightsResponse } from '../services/api';
+import { clientsApi, type ApiError, type ClientResponse, type ClientInsightsResponse } from '../services/api';
+import { useApiResource } from './useApiResource';
 
 export interface ClientData {
   client: ClientResponse | null;
@@ -17,49 +19,25 @@ export interface UseClientDataResult {
   retry: () => void;
 }
 
+const EMPTY: ClientData = { client: null, insights: null };
+
 export function useClientData(clientId: string | null): UseClientDataResult {
-  const [data, setData] = React.useState<ClientData>({ client: null, insights: null });
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<ApiError | null>(null);
-
-  const fetchData = React.useCallback(async () => {
-    if (!clientId) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const [clientData, insightsData] = await Promise.all([
-        clientsApi.getById(clientId),
-        clientsApi.getInsights(clientId),
+  const { data, loading, error, retry } = useApiResource<ClientData>(
+    async (signal) => {
+      const [client, insights] = await Promise.all([
+        clientsApi.getById(clientId as string, signal),
+        clientsApi.getInsights(clientId as string, signal),
       ]);
-
-      setData({
-        client: clientData,
-        insights: insightsData,
-      });
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err);
-      } else {
-        setError(new ApiError(500, 'Erro ao carregar dados', err));
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [clientId]);
-
-  React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+      return { client, insights };
+    },
+    [clientId],
+    { enabled: !!clientId, errorMessage: 'Erro ao carregar dados' },
+  );
 
   return {
-    data,
+    data: data ?? EMPTY,
     loading,
     error,
-    retry: fetchData,
+    retry,
   };
 }

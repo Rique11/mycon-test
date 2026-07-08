@@ -7,7 +7,7 @@ import Icon from '../components/Icon.jsx';
 import Badge from '../components/Badge.jsx';
 import Card from '../components/Card.jsx';
 import Sidebar from '../components/Sidebar.jsx';
-import { useClientList } from '../hooks/useClientList.ts';
+import { useClientList } from '../hooks/useClientList';
 
 export default function ClientListScreen({ onSelectClient, onLogout, activeItem = 'Clientes', onNavigate }) {
   const { clients, loading, error, retry } = useClientList();

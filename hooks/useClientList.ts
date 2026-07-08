@@ -1,9 +1,10 @@
 /**
- * useClientList.ts — Hook para carregar lista de clientes do banker.
+ * useClientList.ts — Hook para carregar lista de clientes do banker,
+ * com cancelamento automático no unmount.
  */
 
-import React from 'react';
-import { clientsApi, ApiError, type ClientResponse } from '../services/api';
+import { clientsApi, type ApiError, type ClientResponse } from '../services/api';
+import { useApiResource } from './useApiResource';
 
 export interface UseClientListResult {
   clients: ClientResponse[];
@@ -13,36 +14,19 @@ export interface UseClientListResult {
 }
 
 export function useClientList(): UseClientListResult {
-  const [clients, setClients] = React.useState<ClientResponse[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<ApiError | null>(null);
-
-  const fetchClients = React.useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await clientsApi.list({ page: 0, size: 100 });
-      setClients(response.content || []);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err);
-      } else {
-        setError(new ApiError(500, 'Erro ao carregar clientes', err));
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    fetchClients();
-  }, [fetchClients]);
+  const { data, loading, error, retry } = useApiResource<ClientResponse[]>(
+    async (signal) => {
+      const response = await clientsApi.list({ page: 0, size: 100 }, signal);
+      return response.content || [];
+    },
+    [],
+    { errorMessage: 'Erro ao carregar clientes' },
+  );
 
   return {
-    clients,
+    clients: data ?? [],
     loading,
     error,
-    retry: fetchClients,
+    retry,
   };
 }

@@ -8,7 +8,7 @@ import ScreenComposicao from './ScreenComposicao.jsx';
 import LoginScreen from './screens/LoginScreen.jsx';
 import ClientListScreen from './screens/ClientListScreen.jsx';
 import PocContempladosScreen from './screens/PocContempladosScreen.jsx';
-import { useAuth } from './hooks/useAuth.ts';
+import { useAuth } from './hooks/useAuth';
 
 export default function App() {
   const { isAuthenticated, logout } = useAuth();

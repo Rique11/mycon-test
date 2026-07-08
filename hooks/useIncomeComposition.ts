@@ -1,45 +1,29 @@
 /**
  * useIncomeComposition.ts — Hook para carregar a composição mensal da renda
- * verificada do cliente (endpoint /clients/{id}/income-composition).
+ * verificada do cliente (endpoint /clients/{id}/income-composition), com
+ * cancelamento automático quando os parâmetros mudam ou o componente desmonta.
  */
 
-import React from 'react';
-import { clientsApi, ApiError } from '../services/api';
+import { clientsApi, type ApiError } from '../services/api';
+import { useApiResource } from './useApiResource';
 
-export function useIncomeComposition(clientId: string | null, params?: { from?: string; to?: string }) {
-  const [data, setData] = React.useState<any | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<ApiError | null>(null);
+export interface UseIncomeCompositionResult {
+  data: unknown | null;
+  loading: boolean;
+  error: ApiError | null;
+  retry: () => void;
+}
 
+export function useIncomeComposition(
+  clientId: string | null,
+  params?: { from?: string; to?: string },
+): UseIncomeCompositionResult {
   const from = params?.from;
   const to = params?.to;
 
-  const fetchData = React.useCallback(async () => {
-    if (!clientId) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await clientsApi.getIncomeComposition(clientId, { from, to });
-      setData(response);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err);
-      } else {
-        setError(new ApiError(500, 'Erro ao carregar composição da renda', err));
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [clientId, from, to]);
-
-  React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  return { data, loading, error, retry: fetchData };
+  return useApiResource<unknown>(
+    (signal) => clientsApi.getIncomeComposition(clientId as string, { from, to }, signal),
+    [clientId, from, to],
+    { enabled: !!clientId, errorMessage: 'Erro ao carregar composição da renda' },
+  );
 }
