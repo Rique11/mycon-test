@@ -1,3 +1,6 @@
+// Configuração do Vite para a aplicação Mycon POC (React).
+// A URL do backend vem de VITE_API_URL (.env.local); não há proxy de dev.
+
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -7,16 +10,6 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    proxy: {
-      '/api': {
-        target: 'https://api.datalizard.tech',
-        changeOrigin: true,
-        secure: true,
-        headers: {
-          Origin: 'https://mycon.datalizard.tech',
-        },
-      },
-    },
   },
   build: {
     outDir: 'dist',
