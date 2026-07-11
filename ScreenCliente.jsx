@@ -61,7 +61,7 @@ export default function ScreenCliente({
     );
   }
 
-  const mesesIncome = (incomeData?.months || []).map(mapMonth);
+  const mesesIncome = (incomeData?.months || []).map((mo) => mapMonth(mo));
   const mesesAnalisados = incomeData?.summary?.monthsAnalyzed || mesesIncome.length;
   const somaEntradas = mesesIncome.reduce((a, m) => a + m.total, 0);
   const receita12m = mesesAnalisados > 0 ? somaEntradas / mesesAnalisados : null;

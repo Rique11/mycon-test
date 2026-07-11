@@ -257,16 +257,33 @@ export interface MonthComposition {
   total: number;
   val: number;
   conf: string;
+  entryCount: number;
+  pixTotal: number;
+  avgEntry: number;
 }
 
-export function mapMonth(mo: Record<string, unknown>): MonthComposition {
+/**
+ * Mapeia um mês bruto da API para o formato de exibição, agregando o
+ * detalhamento de lançamentos (`lines`) desse mês para derivar a
+ * quantidade de entradas, o total recebido via PIX (recorrente e não
+ * recorrente) e o valor médio por entrada.
+ */
+export function mapMonth(mo: Record<string, unknown>, lines: Array<Record<string, unknown>> = []): MonthComposition {
   const { label, long } = ymLabels(mo.yearMonth);
+  const total = num(mo.totalCredits);
+  const list = Array.isArray(lines) ? lines : [];
+  const entryCount = list.length;
+  const pixTotal = list.reduce((acc, l) => (
+    receiptMethod(l.description) === 'PIX' ? acc + num(l.amount) : acc
+  ), 0);
   return {
     id: String(mo.yearMonth), label, long,
     rec: num(mo.recurring), pix: num(mo.pixRecurring), ent: num(mo.betweenAccounts),
     nrec: num(mo.nonRecurring), atip: num(mo.atypical),
-    total: num(mo.totalCredits), val: num(mo.validatedIncome),
+    total, val: num(mo.validatedIncome),
     conf: String(mo.confidence || 'Baixa'),
+    entryCount, pixTotal,
+    avgEntry: entryCount > 0 ? total / entryCount : 0,
   };
 }
 
