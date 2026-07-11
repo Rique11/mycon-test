@@ -105,4 +105,22 @@ describe('classificação de lançamentos', () => {
 
 describe('receiptMethod', () => {
   it('identifica o método de recebimento pela descrição do lançamento', () => {
-    expect(receiptMethod('FABRICIO HOOG CRED RECEBIMENTO PIX')).toB
+    expect(receiptMethod('FABRICIO HOOG CRED RECEBIMENTO PIX')).toBe('PIX');
+    expect(receiptMethod('TED RECEBIDA')).toBe('TED');
+    expect(receiptMethod('DOC RECEBIDO')).toBe('DOC');
+    expect(receiptMethod('PAGAMENTO BOLETO')).toBe('Boleto');
+    expect(receiptMethod('CONTA REMUNERADA - RESGATE APLICAÇÃO')).toBe('Resgate');
+    expect(receiptMethod('CREDITO DIVERSO')).toBe('Outros');
+    expect(receiptMethod(undefined)).toBe('Outros');
+  });
+});
+
+describe('confTone', () => {
+  it('mapeia confiança para tom visual', () => {
+    expect(confTone('Alta')).toBe('success');
+    expect(confTone('Média')).toBe('warning');
+    expect(confTone('Media')).toBe('warning');
+    expect(confTone('Baixa')).toBe('danger');
+    expect(confTone(undefined)).toBe('danger');
+  });
+});

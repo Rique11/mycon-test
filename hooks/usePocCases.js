@@ -1,14 +1,31 @@
 /**
  * usePocCases.js — hook de estado e persistência (localStorage) dos casos da
  * fila operacional da POC, com criação de caso a partir do formulário.
- * Regras de negócio puras vivem em services/domain; seeds em services/pocSeeds.
+ * Exibe apenas casos reais; casos sintéticos de demonstração gravados em
+ * versões anteriores são expurgados na leitura. Regras puras em services/domain.
  */
 
 import React from 'react';
 import { maskCpf, onlyDigits } from '../lib/format';
-import { SEED_CASES } from '../services/pocSeeds';
 
 const STORAGE_KEY = 'mycon_poc_cases_v1';
+
+// Identificadores dos casos sintéticos de versões anteriores, removidos do
+// localStorage na leitura para que somente clientes reais sejam exibidos.
+const LEGACY_SEED_IDS = new Set([
+  'pc-2051-cliente-teste', 'pc-2041', 'pc-2042', 'pc-2043', 'pc-2044',
+  'pc-2045', 'pc-2046', 'pc-2047', 'pc-2048', 'pc-2049', 'pc-2050',
+]);
+
+const LEGACY_SEED_CPFS = new Set([
+  '12345678900', '32145678909', '65498712344', '23198745612', '78912345688',
+  '14725836977', '96385274133', '85274196310', '15935725866', '75395145622',
+]);
+
+function isLegacySeed(caseItem) {
+  return LEGACY_SEED_IDS.has(String(caseItem?.id || ''))
+    || LEGACY_SEED_CPFS.has(onlyDigits(caseItem?.cpf));
+}
 
 function addDays(date, days) {
   const next = new Date(date);
@@ -18,14 +35,6 @@ function addDays(date, days) {
 
 function evidenceHashFromCaseId(caseId) {
   return `POC-${String(caseId || 'MYCON').replace(/[^A-Za-z0-9]/g, '').slice(-8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-}
-
-function mergeSeedCases(savedCases) {
-  if (!Array.isArray(savedCases) || savedCases.length === 0) return SEED_CASES;
-  const savedIds = new Set(savedCases.map((item) => item.id));
-  const savedCpfs = new Set(savedCases.map((item) => onlyDigits(item.cpf)).filter(Boolean));
-  const missingSeeds = SEED_CASES.filter((item) => !savedIds.has(item.id) && !savedCpfs.has(onlyDigits(item.cpf)));
-  return [...missingSeeds, ...savedCases];
 }
 
 export function createPocCaseFromForm(form, apiResult = {}) {
@@ -64,14 +73,15 @@ export function createPocCaseFromForm(form, apiResult = {}) {
 }
 
 function readInitialCases() {
-  if (typeof window === 'undefined') return SEED_CASES;
+  if (typeof window === 'undefined') return [];
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (!saved) return SEED_CASES;
+    if (!saved) return [];
     const parsed = JSON.parse(saved);
-    return mergeSeedCases(parsed);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item) => !isLegacySeed(item));
   } catch {
-    return SEED_CASES;
+    return [];
   }
 }
 
@@ -109,7 +119,7 @@ export function usePocCases() {
   }, []);
 
   const resetCases = React.useCallback(() => {
-    setCases(SEED_CASES);
+    setCases([]);
   }, []);
 
   const nextCaseId = React.useMemo(() => getNextCaseId(cases), [cases]);

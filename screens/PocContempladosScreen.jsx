@@ -15,6 +15,8 @@ import {
 } from '../services/domain';
 import { maskCpf } from '../lib/format';
 import { usePocCases } from '../hooks/usePocCases.js';
+import { useClientList } from '../hooks/useClientList';
+import { buildQueueCases } from '../services/clientResolution.js';
 import { getLocalBankLabels } from '../hooks/useCaseEvidence.js';
 
 function countByFilter(cases, filter) {
@@ -64,33 +66,36 @@ function getQueueBanksLabel(caseItem, queueRule, bankLabels = getLocalBankLabels
 
 export default function PocContempladosScreen({ onLogout, onNavigate, onSelectClient }) {
   const { cases, addCase, updateCase, nextCaseId } = usePocCases();
+  const { clients, loading: clientsLoading, error: clientsError, retry: retryClients } = useClientList();
   const [activeFilter, setActiveFilter] = React.useState('todos');
   const [searchTerm, setSearchTerm] = React.useState('');
   const [showNewCase, setShowNewCase] = React.useState(false);
   const [selectedCase, setSelectedCase] = React.useState(null);
   const [caseCreatedInModal, setCaseCreatedInModal] = React.useState(null);
 
+  const queueCases = React.useMemo(() => buildQueueCases(clients, cases), [clients, cases]);
+
   const filteredCases = React.useMemo(
-    () => getFilteredCases(cases, activeFilter, searchTerm),
-    [cases, activeFilter, searchTerm],
+    () => getFilteredCases(queueCases, activeFilter, searchTerm),
+    [queueCases, activeFilter, searchTerm],
   );
 
   const metrics = React.useMemo(() => {
-    const ready = cases.filter((item) => item.status === 'pronto').length;
-    const connected = cases.filter((item) => item.status === 'conectado').length;
-    const pending = countByFilter(cases, POC_FILTERS.find((item) => item.key === 'pendencia'));
-    const waiting = countByFilter(cases, POC_FILTERS.find((item) => item.key === 'aguardando'));
+    const ready = queueCases.filter((item) => item.status === 'pronto').length;
+    const connected = queueCases.filter((item) => item.status === 'conectado').length;
+    const pending = countByFilter(queueCases, POC_FILTERS.find((item) => item.key === 'pendencia'));
+    const waiting = countByFilter(queueCases, POC_FILTERS.find((item) => item.key === 'aguardando'));
 
     return [
-      { label: 'Casos na fila', value: cases.length, note: 'Base local da POC', tone: 'blue' },
+      { label: 'Casos na fila', value: queueCases.length, note: 'Clientes da API + casos locais', tone: 'blue' },
       { label: 'Aguardando cliente', value: waiting, note: 'Consentimento enviado ou pendente', tone: 'warning' },
       { label: 'Open Finance conectado', value: connected, note: 'Coleta em andamento', tone: 'purple' },
       { label: 'Extratos prontos', value: ready, note: 'Pacote 12m gerado', tone: 'success' },
       { label: 'Pendências', value: pending, note: 'Casos que pedem ação', tone: 'danger' },
     ];
-  }, [cases]);
+  }, [queueCases]);
 
-  const pendingCases = React.useMemo(() => getPendingCases(cases), [cases]);
+  const pendingCases = React.useMemo(() => getPendingCases(queueCases), [queueCases]);
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
@@ -108,12 +113,15 @@ export default function PocContempladosScreen({ onLogout, onNavigate, onSelectCl
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 18 }}>
               <CasesTable
                 cases={filteredCases}
-                allCases={cases}
+                allCases={queueCases}
                 activeFilter={activeFilter}
                 onFilterChange={setActiveFilter}
                 searchTerm={searchTerm}
                 onSearchTermChange={setSearchTerm}
                 onSelectCase={setSelectedCase}
+                loading={clientsLoading}
+                errorMessage={clientsError ? 'Não foi possível carregar os clientes da API.' : ''}
+                onRetry={retryClients}
               />
 
               <OperationalFooter pendingCases={pendingCases} onSelectCase={setSelectedCase} />
@@ -125,7 +133,7 @@ export default function PocContempladosScreen({ onLogout, onNavigate, onSelectCl
       {showNewCase && (
         <NewCaseModal
           defaultCaseId={nextCaseId}
-          existingCases={cases}
+          existingCases={queueCases}
           onClose={() => {
             setShowNewCase(false);
             if (caseCreatedInModal) {
@@ -297,7 +305,7 @@ function MetricsGrid({ metrics }) {
   );
 }
 
-function CasesTable({ cases, allCases, activeFilter, onFilterChange, searchTerm, onSearchTermChange, onSelectCase }) {
+function CasesTable({ cases, allCases, activeFilter, onFilterChange, searchTerm, onSearchTermChange, onSelectCase, loading = false, errorMessage = '', onRetry }) {
   return (
     <Card padding="0" style={{ overflow: 'hidden' }}>
       <div style={{
@@ -408,7 +416,17 @@ function CasesTable({ cases, allCases, activeFilter, onFilterChange, searchTerm,
             {cases.length === 0 ? (
               <tr>
                 <td colSpan={8} style={{ padding: 34, textAlign: 'center', color: TOKENS.textMuted, fontSize: 13 }}>
-                  Nenhum caso encontrado para esse filtro.
+                  {loading ? 'Carregando clientes da API...' : errorMessage ? (
+                    <span>
+                      {errorMessage}{' '}
+                      <button type="button" onClick={onRetry} className="lz-link" style={{
+                        border: 0, background: 'transparent', color: TOKENS.primary,
+                        fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0,
+                      }}>
+                        Tentar novamente
+                      </button>
+                    </span>
+                  ) : 'Nenhum caso encontrado para esse filtro.'}
                 </td>
               </tr>
             ) : (

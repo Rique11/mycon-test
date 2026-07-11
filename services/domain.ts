@@ -282,4 +282,15 @@ export interface DetailLine {
 }
 
 export function groupDetail(lines: Array<Record<string, unknown>> | null | undefined): Record<string, { title: string; items: DetailLine[] }> {
-  const groups: Record<string, { title: string; items: DetailL
+  const groups: Record<string, { title: string; items: DetailLine[] }> = {};
+  GROUP_ORDER.forEach(([key, title]) => { groups[key] = { title, items: [] }; });
+  (lines || []).forEach((l) => {
+    const key = String(l.classification) === 'ENT' ? 'ent' : 'receita';
+    groups[key].items.push({
+      d: l.date, desc: String(l.description || '—'), inst: String(l.personType || '—'),
+      val: num(l.amount), cls: CLS_KEY[String(l.classification)] || 'nrec',
+      met: receiptMethod(l.description), cons: !!l.considered, obs: '',
+    });
+  });
+  return groups;
+}

@@ -612,4 +612,3 @@ export async function exportConsolidado({ client, caseItem, insights, income, st
   const suffix = dataStatus === 'demo' ? '-demonstrativo' : '';
   await downloadWorkbook(workbook, `dossie-${slug(client?.name)}-${income?.toYearMonth || ''}${suffix}.xlsx`);
 }
-                                                                                                                                       

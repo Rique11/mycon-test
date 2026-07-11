@@ -1,6 +1,7 @@
 /**
  * clientResolution.js — resolução do cliente da API Akropoli correspondente a um
- * caso da POC (busca por CPF, e-mail ou nome) e criação do cliente quando necessário.
+ * caso da POC (busca por CPF, e-mail ou nome), criação do cliente quando necessário
+ * e montagem da fila operacional combinando clientes reais da API com casos locais.
  *
  * Limitação conhecida: o fallback de busca lista apenas os 100 primeiros clientes
  * e casa por nome — homônimos podem vincular o caso ao cliente errado.
@@ -8,7 +9,7 @@
  */
 
 import { clientsApi } from './api';
-import { onlyDigits } from '../lib/format';
+import { maskCpf, onlyDigits } from '../lib/format';
 
 function getArrayFromPage(response) {
   if (Array.isArray(response)) return response;
@@ -78,6 +79,45 @@ export async function resolveClientForCase(caseItem) {
   }
 
   return { client: resolution.client, id };
+}
+
+export function buildQueueCases(clients, cases) {
+  const localCases = cases || [];
+
+  const apiOnly = (clients || [])
+    .filter((client) => {
+      const id = getClientId(client);
+      return !localCases.some((item) =>
+        (item.clientId && id && String(item.clientId) === String(id))
+        || (onlyDigits(item.cpf) && isSameCpf(client, item.cpf)));
+    })
+    .map((client) => {
+      const id = getClientId(client);
+      return {
+        id: `client-${id}`,
+        externalCaseId: '—',
+        name: client.name || '—',
+        cpf: client.cpf || '',
+        cpfMasked: maskCpf(client.cpf || ''),
+        phone: '',
+        email: client.email || '',
+        group: '—',
+        quota: '—',
+        product: '—',
+        letterValue: '—',
+        contemplationDate: null,
+        banks: [],
+        status: client.akropoliLinkId ? 'conectado' : 'aguardando',
+        updatedAtLabel: '—',
+        clientId: id,
+        consentLink: '',
+        consent: null,
+        notes: '',
+        fromApi: true,
+      };
+    });
+
+  return [...localCases, ...apiOnly];
 }
 
 export async function createOrFindClient(form) {
