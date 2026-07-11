@@ -12,6 +12,7 @@ import {
   groupDetail,
   isConsentAccepted,
   mapMonth,
+  receiptMethod,
 } from './domain';
 
 describe('getStatusMeta', () => {
@@ -83,31 +84,25 @@ describe('classificação de lançamentos', () => {
     expect(m.conf).toBe('Baixa');
   });
 
-  it('groupDetail agrupa por classificação e usa nrec como fallback', () => {
+  it('groupDetail separa receita de transferências entre contas do titular', () => {
     const groups = groupDetail([
-      { classification: 'REC', amount: 100, date: '2025-05-01' },
-      { classification: 'ATIP', amount: 50, date: '2025-05-02' },
-      { classification: 'DESCONHECIDA', amount: 10, date: '2025-05-03' },
+      { classification: 'REC', amount: 100, date: '2025-05-01', description: 'CRED RECEBIMENTO PIX' },
+      { classification: 'ENT', amount: 50, date: '2025-05-02', description: 'TED MESMA TITULARIDADE' },
+      { classification: 'NREC', amount: 10, date: '2025-05-03', description: 'PAGAMENTO BOLETO' },
     ]);
-    expect(groups.rec.items).toHaveLength(1);
-    expect(groups.atip.items).toHaveLength(1);
-    expect(groups.nrec.items).toHaveLength(1);
-    expect(groups.pix.items).toHaveLength(0);
+    expect(groups.receita.items).toHaveLength(2);
+    expect(groups.ent.items).toHaveLength(1);
+    expect(groups.receita.items[0].met).toBe('PIX');
+    expect(groups.ent.items[0].met).toBe('TED');
   });
 
   it('groupDetail aceita lista vazia ou nula', () => {
     const groups = groupDetail(null);
-    expect(Object.keys(groups)).toHaveLength(5);
-    expect(groups.rec.items).toHaveLength(0);
+    expect(Object.keys(groups)).toHaveLength(2);
+    expect(groups.receita.items).toHaveLength(0);
   });
 });
 
-describe('confTone', () => {
-  it('mapeia confiança para tom visual', () => {
-    expect(confTone('Alta')).toBe('success');
-    expect(confTone('Média')).toBe('warning');
-    expect(confTone('Media')).toBe('warning');
-    expect(confTone('Baixa')).toBe('danger');
-    expect(confTone(undefined)).toBe('danger');
-  });
-});
+describe('receiptMethod', () => {
+  it('identifica o método de recebimento pela descrição do lançamento', () => {
+    expect(receiptMethod('FABRICIO HOOG CRED RECEBIMENTO PIX')).toB

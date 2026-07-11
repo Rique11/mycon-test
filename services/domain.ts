@@ -1,7 +1,8 @@
 /**
  * domain.ts — regras de negócio puras e constantes de domínio da POC Mycon:
  * status da fila operacional, filtros, regras de consentimento e classificação
- * de lançamentos da composição de renda (REC/PIX/ENT/NREC/ATIP).
+ * de lançamentos da composição de renda: agrupamento em receita vs. transferências
+ * entre contas do titular, com método de recebimento (PIX, TED, ...) por lançamento.
  */
 
 import { num, ymLabels } from '../lib/format';
@@ -222,12 +223,21 @@ export function getQueueBusinessRules(caseItem: PocCase, options: QueueRuleOptio
 export const CLS_KEY: Record<string, string> = { REC: 'rec', PIX: 'pix', ENT: 'ent', NREC: 'nrec', ATIP: 'atip' };
 
 export const GROUP_ORDER: Array<[string, string]> = [
-  ['rec', 'A. Receita recorrente mensal'],
-  ['pix', 'B. PIX recorrente validável'],
-  ['ent', 'C. Transferências entre contas'],
-  ['nrec', 'D. Entradas não recorrentes'],
-  ['atip', 'E. Créditos atípicos / excluídos'],
+  ['receita', 'A. Receita'],
+  ['ent', 'B. Entre contas (Pessoa Física)'],
 ];
+
+export const RECEIPT_METHODS = ['PIX', 'TED', 'DOC', 'Boleto', 'Resgate', 'Outros'] as const;
+
+export function receiptMethod(description: unknown): string {
+  const d = String(description || '').toUpperCase();
+  if (/\bPIX\b/.test(d)) return 'PIX';
+  if (/\bTED\b/.test(d)) return 'TED';
+  if (/\bDOC\b/.test(d)) return 'DOC';
+  if (d.includes('BOLETO')) return 'Boleto';
+  if (d.includes('RESGATE')) return 'Resgate';
+  return 'Outros';
+}
 
 export function confTone(conf: string | undefined): string {
   if (conf === 'Alta') return 'success';
@@ -266,19 +276,10 @@ export interface DetailLine {
   inst: string;
   val: number;
   cls: string;
+  met: string;
   cons: boolean;
   obs: string;
 }
 
 export function groupDetail(lines: Array<Record<string, unknown>> | null | undefined): Record<string, { title: string; items: DetailLine[] }> {
-  const groups: Record<string, { title: string; items: DetailLine[] }> = {};
-  GROUP_ORDER.forEach(([key, title]) => { groups[key] = { title, items: [] }; });
-  (lines || []).forEach((l) => {
-    const key = CLS_KEY[String(l.classification)] || 'nrec';
-    groups[key].items.push({
-      d: l.date, desc: String(l.description || '—'), inst: String(l.personType || '—'),
-      val: num(l.amount), cls: key, cons: !!l.considered, obs: '',
-    });
-  });
-  return groups;
-}
+  const groups: Record<string, { title: string; items: DetailL

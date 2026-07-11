@@ -10,6 +10,7 @@ import Card from './components/Card.jsx';
 import StepNumber from './components/StepNumber.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import AsyncScreen from './components/AsyncScreen.jsx';
+import InfoTip from './components/InfoTip.jsx';
 import { useIncomeComposition } from './hooks/useIncomeComposition';
 import { useClientData } from './hooks/useClientData';
 import { useAuth } from './hooks/useAuth';
@@ -175,15 +176,24 @@ function CompHeader({ onVoltar, onExportExcel, onExportPdf, exportDisabled = fal
 // ───────── 1. Resumo da composição ─────────
 function ResumoComposicao({ meses, summary }) {
   const sum = (k) => meses.reduce((a, m) => a + m[k], 0);
+  const mesesRecebidos = summary.monthsAnalyzed || meses.length || 1;
   const items = [
-    { l: 'Renda verificada média', v: fmt(summary.validatedIncomeAvg), s: `Média mensal (${summary.monthsAnalyzed}m)`, icon: I.wallet, tone: 'blue', mono: true },
-    { l: 'Receita recorrente', v: `${summary.recurringMonths} / ${summary.monthsAnalyzed}`, s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true },
-    { l: 'Confiança da análise', v: summary.confidence, s: 'Padrão dos créditos', icon: I.shieldCheck, tone: confTone(summary.confidence), isBadge: true, badgeTone: confTone(summary.confidence) },
-    { l: 'Créditos atípicos', v: fmt(sum('atip')), s: 'Removidos da média', icon: I.alert, tone: 'danger', mono: true },
-    { l: 'Entre contas', v: fmt(sum('ent')), s: 'No período', icon: I.link, tone: 'purple', mono: true },
-    { l: 'Não recorrentes', v: fmt(sum('nrec')), s: 'No período', icon: I.history, tone: 'warning', mono: true },
-    { l: 'PIX recorrente validável', v: fmt(sum('pix')), s: 'No período', icon: I.send, tone: 'blue', mono: true },
-    { l: 'Renda validada (total)', v: fmt(sum('val')), s: 'Soma do período', icon: I.chart, tone: 'success', mono: true },
+    { l: 'Receita média', v: fmt(sum('total') / mesesRecebidos), s: `Média mensal (${summary.monthsAnalyzed}m)`, icon: I.wallet, tone: 'blue', mono: true,
+      info: 'Total de entradas do período (inclui transferências entre contas) dividido pelos meses recebidos via Open Finance.' },
+    { l: 'Receita recorrente', v: `${summary.recurringMonths} / ${summary.monthsAnalyzed}`, s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true,
+      info: 'Quantidade de meses com receita recorrente identificada em relação ao total de meses analisados.' },
+    { l: 'Confiança da análise', v: summary.confidence, s: 'Padrão dos créditos', icon: I.shieldCheck, tone: confTone(summary.confidence), isBadge: true, badgeTone: confTone(summary.confidence),
+      info: 'Nível de confiança da classificação, com base no padrão e na estabilidade dos créditos identificados no período.' },
+    { l: 'Créditos atípicos', v: fmt(sum('atip')), s: 'Removidos da média', icon: I.alert, tone: 'danger', mono: true,
+      info: 'Créditos fora do padrão (ex.: estornos, resgates de investimento) excluídos do cálculo da renda validada.' },
+    { l: 'Entre contas', v: fmt(sum('ent')), s: 'No período', icon: I.link, tone: 'purple', mono: true,
+      info: 'Transferências entre contas da mesma titularidade identificadas no período; não representam nova geração de renda.' },
+    { l: 'Não recorrentes', v: fmt(sum('nrec')), s: 'No período', icon: I.history, tone: 'warning', mono: true,
+      info: 'Entradas sem padrão de recorrência no período; normalmente não compõem a renda validada.' },
+    { l: 'PIX recorrente validável', v: fmt(sum('pix')), s: 'No período', icon: I.send, tone: 'blue', mono: true,
+      info: 'PIX com padrão recorrente que podem entrar na renda validada quando houver consistência de origem e valor.' },
+    { l: 'Receita total', v: fmt(sum('total')), s: 'Soma do período', icon: I.chart, tone: 'success', mono: true,
+      info: 'Soma de todas as entradas do período, incluindo transferências entre contas.' },
   ];
   const tonesMap = {
     blue: { bg: TOKENS.primarySoft, fg: TOKENS.primary },
@@ -214,6 +224,7 @@ function ResumoComposicao({ meses, summary }) {
                 <div style={{ fontSize: 11.5, color: TOKENS.textMuted, fontWeight: 500, lineHeight: 1.25 }}>
                   {f.l}
                 </div>
+                <InfoTip text={f.info} />
               </div>
               {f.isBadge ? (
                 <div style={{ marginTop: 4 }}><Badge tone={f.badgeTone} size="md" dot>{f.v}</Badge></div>
@@ -315,12 +326,13 @@ function CompMensal({ meses, avg }) {
 }
 
 // ───────── 3. Detalhamento dos créditos por mês ─────────
-const CLASSIF = {
-  rec: { label: 'Receita recorrente mensal', tone: 'success' },
-  pix: { label: 'PIX recorrente validável', tone: 'blue' },
-  ent: { label: 'Transferência entre contas', tone: 'neutral' },
-  nrec: { label: 'Entrada não recorrente', tone: 'warning' },
-  atip: { label: 'Crédito atípico / excluído', tone: 'danger' },
+const METHOD_TONE = {
+  PIX: 'blue',
+  TED: 'purple',
+  DOC: 'neutral',
+  Boleto: 'warning',
+  Resgate: 'neutral',
+  Outros: 'neutral',
 };
 
 function DetalhamentoMeses({ meses, detailByMonth }) {
@@ -378,8 +390,6 @@ const MesDetail = React.memo(function MesDetail({ mes, lines, open, onToggle }) 
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: TOKENS.text }}>{mes.long}</span>
           <span style={{ fontSize: 12, color: TOKENS.textMuted }}>
-            Renda validada: <span className="num" style={{ color: TOKENS.text, fontWeight: 600 }}>{fmt(mes.val)}</span>
-            <span style={{ margin: '0 8px', color: TOKENS.borderStrong }}>·</span>
             Total créditos: <span className="num" style={{ color: TOKENS.text, fontWeight: 500 }}>{fmt(mes.total)}</span>
           </span>
         </div>
@@ -417,9 +427,9 @@ function DetailGroup({ title, items }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: TOKENS.panel, borderBottom: `1px solid ${TOKENS.border}` }}>
-                {['Data', 'Descrição', 'Origem', 'Valor', 'Classificação', 'Considerado'].map((h, i) => (
+                {['Data', 'Descrição', 'Origem', 'Valor', 'Método de recebimento'].map((h, i) => (
                   <th key={i} style={{
-                    padding: '9px 14px', textAlign: i === 3 ? 'right' : i === 5 ? 'center' : 'left',
+                    padding: '9px 14px', textAlign: i === 3 ? 'right' : 'left',
                     fontWeight: 600, color: TOKENS.textMuted, fontSize: 10.5,
                     textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap',
                   }}>{h}</th>
@@ -427,29 +437,15 @@ function DetailGroup({ title, items }) {
               </tr>
             </thead>
             <tbody>
-              {items.map((it, i) => {
-                const c = CLASSIF[it.cls];
-                return (
-                  <tr key={i} className="lz-row-hover" style={{ borderBottom: i < items.length - 1 ? `1px solid ${TOKENS.border}` : 'none' }}>
-                    <td className="num" style={{ padding: '10px 14px', color: TOKENS.text }}>{it.d}</td>
-                    <td style={{ padding: '10px 14px', color: TOKENS.text, fontWeight: 500 }}>{it.desc}</td>
-                    <td style={{ padding: '10px 14px', color: TOKENS.textMuted }}>{it.inst}</td>
-                    <td className="num" style={{ padding: '10px 14px', textAlign: 'right', color: TOKENS.text, fontWeight: 600 }}>{fmt(it.val)}</td>
-                    <td style={{ padding: '10px 14px' }}><Badge tone={c.tone} size="sm" dot>{c.label}</Badge></td>
-                    <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                      {it.cons ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: TOKENS.success, fontSize: 12, fontWeight: 600 }}>
-                          <Icon d={I.check} size={12} stroke={TOKENS.success} strokeWidth={2.5} /> Sim
-                        </span>
-                      ) : (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: TOKENS.textSubtle, fontSize: 12 }}>
-                          <Icon d={I.x} size={11} stroke={TOKENS.textSubtle} strokeWidth={2} /> Não
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {items.map((it, i) => (
+                <tr key={i} className="lz-row-hover" style={{ borderBottom: i < items.length - 1 ? `1px solid ${TOKENS.border}` : 'none' }}>
+                  <td className="num" style={{ padding: '10px 14px', color: TOKENS.text }}>{it.d}</td>
+                  <td style={{ padding: '10px 14px', color: TOKENS.text, fontWeight: 500 }}>{it.desc}</td>
+                  <td style={{ padding: '10px 14px', color: TOKENS.textMuted }}>{it.inst}</td>
+                  <td className="num" style={{ padding: '10px 14px', textAlign: 'right', color: TOKENS.text, fontWeight: 600 }}>{fmt(it.val)}</td>
+                  <td style={{ padding: '10px 14px' }}><Badge tone={METHOD_TONE[it.met] || 'neutral'} size="sm" dot>{it.met}</Badge></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -557,3 +553,4 @@ function LeituraOperacional({ onVoltar }) {
     </div>
   );
 }
+                                                                                                                                                 

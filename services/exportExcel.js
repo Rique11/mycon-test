@@ -6,7 +6,7 @@
 // (mycon-poc-excel-consolidado-V1-visual-padronizado.xlsx).
 
 import { maskCpf as maskCpfShared, mesLabel, periodo, slug } from '../lib/format';
-import { PRODUCT_LABELS } from './domain';
+import { PRODUCT_LABELS, receiptMethod } from './domain';
 
 async function loadExcelJS() {
   const mod = await import('exceljs');
@@ -14,13 +14,14 @@ async function loadExcelJS() {
 }
 
 
-const CLASS_LABEL = {
-  REC: 'Receita recorrente',
-  PIX: 'PIX recorrente',
-  ENT: 'Transferência própria',
-  NREC: 'Não recorrente',
-  ATIP: 'Atípico / excluído',
+const GROUP_LABEL = {
+  receita: 'Receita',
+  ent: 'Entre contas (Pessoa Física)',
 };
+
+function groupLabel(classification) {
+  return classification === 'ENT' ? GROUP_LABEL.ent : GROUP_LABEL.receita;
+}
 
 const NO_DATA_NOTE = 'Nenhum dado de Open Finance disponível para este caso nesta janela.';
 
@@ -361,11 +362,16 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, dataStatus }
     fmt: FMT.cur0,
     subtext: 'Mediana mensal de créditos recorrentes, janela de 3 meses.',
   });
+  const incomeMonths = income?.months || [];
+  const mesesRecebidos = income?.summary?.monthsAnalyzed || incomeMonths.length;
+  const receitaMedia = mesesRecebidos
+    ? sum(incomeMonths.map((m) => num(m.totalCredits) ?? 0)) / mesesRecebidos
+    : null;
   kpiCard(ws, r, 3, {
-    label: 'Renda verificada — média (12m)',
-    value: num(insights?.avgMonthlyIncome12m),
+    label: 'Receita média (12m)',
+    value: num(receitaMedia),
     fmt: FMT.cur0,
-    subtext: 'Mediana mensal de créditos recorrentes, janela de 12 meses.',
+    subtext: 'Total de entradas (inclui transferências entre contas) dividido pelos meses recebidos.',
   });
   kpiCard(ws, r, 5, {
     label: 'Despesa média mensal (3m)',
@@ -409,9 +415,9 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, dataStatus }
 
 function buildRaioXSheet(ws, { income, statement }) {
   noGrid(ws);
-  ws.columns = [10, 16, 16, 16, 16].map((width) => ({ width }));
-  titleRow(ws, 1, 5, 'Raio-X de Crédito — Fluxo de Caixa mês a mês');
-  subtitleRow(ws, 2, 5, 'Entradas, saídas e fluxo líquido por mês, calculados a partir do extrato Open Finance.');
+  ws.columns = [10, 16, 16, 16].map((width) => ({ width }));
+  titleRow(ws, 1, 4, 'Raio-X de Crédito — Fluxo de Caixa mês a mês');
+  subtitleRow(ws, 2, 4, 'Entradas, saídas e fluxo líquido por mês, calculados a partir do extrato Open Finance.');
 
   const saidasPorMes = {};
   (statement?.rows || []).forEach((row) => {
@@ -423,69 +429,65 @@ function buildRaioXSheet(ws, { income, statement }) {
   const months = income?.months || [];
   let r = 4;
   if (!months.length) {
-    noteRow(ws, r, 5, NO_DATA_NOTE);
+    noteRow(ws, r, 4, NO_DATA_NOTE);
     r += 1;
   }
-  columnHeaderRow(ws, r, ['Mês', 'Entradas totais', 'Saídas totais', 'Fluxo líquido', 'Renda validada']);
+  columnHeaderRow(ws, r, ['Mês', 'Entradas totais', 'Saídas totais', 'Fluxo líquido']);
   r += 1;
 
   const entradasArr = [];
   const saidasArr = [];
   const fluxoArr = [];
-  const rendaArr = [];
-  const flowFormats = [undefined, FMT.cur0, FMT.cur0, FMT.curSignedCond, FMT.cur0];
+  const flowFormats = [undefined, FMT.cur0, FMT.cur0, FMT.curSignedCond];
 
   months.forEach((m, idx) => {
     const entradas = num(m.totalCredits) ?? 0;
     const saidas = saidasPorMes[m.yearMonth] || 0;
     const fluxo = entradas - saidas;
-    const renda = num(m.validatedIncome) ?? 0;
     entradasArr.push(entradas);
     saidasArr.push(saidas);
     fluxoArr.push(fluxo);
-    rendaArr.push(renda);
-    dataRow(ws, r, [mesLabel(m.yearMonth), entradas, saidas, fluxo, renda], { zebra: idx % 2 === 1, formats: flowFormats });
+    dataRow(ws, r, [mesLabel(m.yearMonth), entradas, saidas, fluxo], { zebra: idx % 2 === 1, formats: flowFormats });
     r += 1;
   });
 
   if (months.length) {
-    totalRow(ws, r, ['Total 12m', sum(entradasArr), sum(saidasArr), sum(fluxoArr), sum(rendaArr)], { formats: flowFormats });
+    totalRow(ws, r, ['Total 12m', sum(entradasArr), sum(saidasArr), sum(fluxoArr)], { formats: flowFormats });
     r += 1;
-    totalRow(ws, r, ['Média/mês', avg(entradasArr), avg(saidasArr), avg(fluxoArr), avg(rendaArr)], { formats: flowFormats });
+    totalRow(ws, r, ['Média/mês', avg(entradasArr), avg(saidasArr), avg(fluxoArr)], { formats: flowFormats });
     r += 2;
   } else {
     r += 1;
   }
 
-  noteRow(ws, r, 5, 'Observação: saldo de fim de mês não exibido — o Open Finance não fornece saldo histórico por lançamento.');
+  noteRow(ws, r, 4, 'Observação: saldo de fim de mês não exibido — o Open Finance não fornece saldo histórico por lançamento.');
 }
 
 function buildComposicaoSheet(ws, { income }) {
   noGrid(ws);
-  ws.columns = [10, 16, 14, 18, 14, 16, 14, 14, 10].map((width) => ({ width }));
-  titleRow(ws, 1, 9, 'Composição mensal da renda verificada', 'Créditos classificados, exclusões e renda validada por mês.');
+  ws.columns = [10, 16, 24, 16, 10].map((width) => ({ width }));
+  titleRow(ws, 1, 5, 'Composição mensal das entradas', 'Receita e transferências entre contas do titular por mês.');
 
   const months = income?.months || [];
   let r = 3;
   if (!months.length) {
-    noteRow(ws, r, 9, NO_DATA_NOTE);
+    noteRow(ws, r, 5, NO_DATA_NOTE);
     r += 1;
   }
-  columnHeaderRow(ws, r, ['Mês', 'Receita recorrente', 'PIX recorrente', 'Transferências próprias', 'Não recorrentes', 'Atípicos/excluídos', 'Total entradas', 'Renda validada', 'Confiança']);
+  columnHeaderRow(ws, r, ['Mês', 'Receita', 'Entre contas (Pessoa Física)', 'Total entradas', 'Confiança']);
   r += 1;
 
-  const moneyFormats = [undefined, FMT.cur2, FMT.cur2, FMT.cur2, FMT.cur2, FMT.cur2, FMT.cur2, FMT.cur2, undefined];
-  const totals = [0, 0, 0, 0, 0, 0, 0];
+  const moneyFormats = [undefined, FMT.cur2, FMT.cur2, FMT.cur2, undefined];
+  const totals = [0, 0, 0];
 
   months.forEach((m, idx) => {
-    const values = [
-      num(m.recurring) ?? 0, num(m.pixRecurring) ?? 0, num(m.betweenAccounts) ?? 0,
-      num(m.nonRecurring) ?? 0, num(m.atypical) ?? 0, num(m.totalCredits) ?? 0, num(m.validatedIncome) ?? 0,
-    ];
+    const total = num(m.totalCredits) ?? 0;
+    const entreContas = num(m.betweenAccounts) ?? 0;
+    const values = [total - entreContas, entreContas, total];
     values.forEach((v, i) => { totals[i] += v; });
     const confidence = formatConfidence(m.confidence);
     dataRow(ws, r, [mesLabel(m.yearMonth), ...values, confidence.value], { zebra: idx % 2 === 1, formats: moneyFormats });
-    if (confidence.color) ws.getCell(r, 9).font = { name: FONT, size: 10, bold: true, color: { argb: confidence.color } };
+    if (confidence.color) ws.getCell(r, 5).font = { name: FONT, size: 10, bold: true, color: { argb: confidence.color } };
     r += 1;
   });
 
@@ -497,8 +499,8 @@ function buildComposicaoSheet(ws, { income }) {
 
 function buildLancamentosSheet(ws, { income }) {
   noGrid(ws);
-  ws.columns = [12, 8, 18, 34, 12, 20, 18].map((width) => ({ width }));
-  titleRow(ws, 1, 7, 'Lançamentos classificados', 'Créditos usados ou excluídos da renda verificada, com rastreabilidade da classificação.');
+  ws.columns = [12, 8, 18, 34, 12, 24, 18].map((width) => ({ width }));
+  titleRow(ws, 1, 7, 'Lançamentos classificados', 'Créditos agrupados em receita e transferências entre contas, com método de recebimento.');
 
   const detail = income?.detail || [];
   let r = 3;
@@ -506,13 +508,13 @@ function buildLancamentosSheet(ws, { income }) {
     noteRow(ws, r, 7, NO_DATA_NOTE);
     r += 1;
   }
-  columnHeaderRow(ws, r, ['Data', 'Mês', 'Origem (tipo pessoa)', 'Histórico', 'Valor', 'Classificação', 'Considerado na renda']);
+  columnHeaderRow(ws, r, ['Data', 'Mês', 'Origem (tipo pessoa)', 'Histórico', 'Valor', 'Grupo', 'Método de recebimento']);
   r += 1;
 
   detail.forEach((item, idx) => {
     dataRow(ws, r, [
       toExcelDate(item.date), mesLabel(item.yearMonth), item.personType || '', item.description || '',
-      num(item.amount) ?? 0, CLASS_LABEL[item.classification] || item.classification || '', item.considered ? 'Sim' : 'Não',
+      num(item.amount) ?? 0, groupLabel(item.classification), receiptMethod(item.description),
     ], { zebra: idx % 2 === 1, formats: [FMT.date, undefined, undefined, undefined, FMT.cur2, undefined, undefined] });
     r += 1;
   });
@@ -610,3 +612,4 @@ export async function exportConsolidado({ client, caseItem, insights, income, st
   const suffix = dataStatus === 'demo' ? '-demonstrativo' : '';
   await downloadWorkbook(workbook, `dossie-${slug(client?.name)}-${income?.toYearMonth || ''}${suffix}.xlsx`);
 }
+                                                                                                                                       
