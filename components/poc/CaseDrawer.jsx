@@ -571,25 +571,25 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
               <DrawerField label="Grupo / Cota" value={`${caseItem.group || '-'} / ${caseItem.quota || '-'}`} mono />
               <DrawerField label="Valor da carta" value={caseItem.letterValue || '-'} mono />
             <DrawerField label="Contemplação" value={formatDate(caseItem.contemplationDate)} />
+              {consent.tone === 'success' && (
+                <>
+                  <EvidKpi label="Receita anual" value={receita.media12m != null ? fmtBRL(receita.media12m) : '—'} sub="Média mensal (12m)" mono
+                    info="Média mensal das entradas totais no período analisado (até 12 meses)." />
+                  <EvidKpi label="Volatilidade"
+                    value={receita.volatilidade != null ? `${(receita.volatilidade * 100).toFixed(0)}%` : '—'}
+                    sub={receita.volatilidade == null ? 'Sem dado no período'
+                      : receita.volatilidade <= 0.25 ? 'Oscilação baixa'
+                      : receita.volatilidade <= 0.5 ? 'Oscilação moderada'
+                      : 'Oscilação alta'}
+                    mono
+                    info="Quanto a receita mensal (entradas totais) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
+                </>
+              )}
             </div>
-            {consent.tone === 'success' && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
-                <EvidKpi label="Receita anual" value={receita.media12m != null ? fmtBRL(receita.media12m) : '—'} sub="Média mensal (12m)" mono
-                  info="Média mensal das entradas totais no período analisado (até 12 meses)." />
-                <EvidKpi label="Volatilidade"
-                  value={receita.volatilidade != null ? `${(receita.volatilidade * 100).toFixed(0)}%` : '—'}
-                  sub={receita.volatilidade == null ? 'Sem dado no período'
-                    : receita.volatilidade <= 0.25 ? 'Oscilação baixa'
-                    : receita.volatilidade <= 0.5 ? 'Oscilação moderada'
-                    : 'Oscilação alta'}
-                  mono
-                  info="Quanto a receita mensal (entradas totais) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
-              </div>
-            )}
           </DrawerSection>
 
           <DrawerSection number={2} title="Status do consentimento" background={TOKENS.panel}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
               <Badge tone={consent.tone} dot>{consent.label}</Badge>
               {caseItem.consentLink && (
                 <Button variant="outline" size="sm" onClick={handleCopyLink}>
