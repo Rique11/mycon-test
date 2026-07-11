@@ -438,10 +438,7 @@ function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
               : receita.volatilidade <= 0.25 ? 'Oscilação baixa'
               : receita.volatilidade <= 0.5 ? 'Oscilação moderada'
               : 'Oscilação alta'}
-            tone={receita.volatilidade == null ? 'neutral'
-              : receita.volatilidade <= 0.25 ? 'success'
-              : receita.volatilidade <= 0.5 ? 'warning'
-              : 'danger'} mono
+            mono
             info="Quanto a receita mensal (entradas totais) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
         </div>
 
