@@ -251,6 +251,7 @@ function CompMensal({ meses }) {
     { id: 'pixTotal', label: 'PIX recebido', align: 'right' },
     { id: 'entryCount', label: 'Número de entradas', align: 'right' },
     { id: 'avgEntry', label: 'Valor médio de entrada', align: 'right' },
+    { id: 'maxEntry', label: 'Maior entrada', align: 'right' },
     { id: 'ver', label: 'Detalhes', align: 'right' },
   ];
   const totalGeral = meses.reduce((a, m) => a + m.total, 0);
@@ -258,6 +259,7 @@ function CompMensal({ meses }) {
   const pixGeral = meses.reduce((a, m) => a + m.pixTotal, 0);
   const entriesGeral = meses.reduce((a, m) => a + m.entryCount, 0);
   const avgGeral = entriesGeral > 0 ? totalGeral / entriesGeral : 0;
+  const maxGeral = meses.reduce((a, m) => Math.max(a, m.maxEntry), 0);
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -290,6 +292,7 @@ function CompMensal({ meses }) {
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{m.entryCount}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.maxEntry)}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                     <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       Ver detalhes <Icon d={I.chevRight} size={12} stroke={TOKENS.primary} />
@@ -305,6 +308,7 @@ function CompMensal({ meses }) {
                 <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(pixGeral)}</td>
                 <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{entriesGeral}</td>
                 <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
+                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(maxGeral)}</td>
                 <td style={{ padding: '12px 14px' }} />
               </tr>
             </tbody>
