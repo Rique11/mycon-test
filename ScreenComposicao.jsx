@@ -43,11 +43,11 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
     );
   }
 
-  const meses = (data?.months || []).map(mapMonth);
   const detailByMonth = {};
   (data?.detail || []).forEach((l) => {
     (detailByMonth[l.yearMonth] = detailByMonth[l.yearMonth] || []).push(l);
   });
+  const meses = (data?.months || []).map((mo) => mapMonth(mo, detailByMonth[String(mo.yearMonth)] || []));
   const summary = data?.summary || { validatedIncomeAvg: 0, monthsAnalyzed: meses.length, recurringMonths: 0, confidence: 'Baixa' };
 
   return (
@@ -108,7 +108,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '0 32px 40px' }}>
             <ResumoComposicao meses={meses} summary={summary} />
-            <CompMensal meses={meses} avg={summary.validatedIncomeAvg} />
+            <CompMensal meses={meses} />
             <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} />
             <CriterioCard />
             <LeituraOperacional onVoltar={onVoltar} />
@@ -243,19 +243,20 @@ function ResumoComposicao({ meses, summary }) {
 }
 
 // ───────── 2. Composição mensal da renda (tabela ampla) ─────────
-function CompMensal({ meses, avg }) {
+function CompMensal({ meses }) {
   const cols = [
     { id: 'mes', label: 'Mês', align: 'left' },
-    { id: 'rec', label: 'Receita recorrente', align: 'right' },
-    { id: 'pix', label: 'PIX recorrente', align: 'right' },
-    { id: 'ent', label: 'Entre contas', align: 'right' },
-    { id: 'nrec', label: 'Não recorrentes', align: 'right' },
-    { id: 'atip', label: 'Atípicos', align: 'right' },
     { id: 'total', label: 'Total de entradas', align: 'right' },
-    { id: 'val', label: 'Renda validada', align: 'right' },
-    { id: 'conf', label: 'Confiança', align: 'center' },
-    { id: 'ver', label: '', align: 'right' },
+    { id: 'ent', label: 'Entre contas (PF)', align: 'right' },
+    { id: 'pixTotal', label: 'PIX recebido', align: 'right' },
+    { id: 'avgEntry', label: 'Valor médio de entrada', align: 'right' },
+    { id: 'ver', label: 'Detalhes', align: 'right' },
   ];
+  const totalGeral = meses.reduce((a, m) => a + m.total, 0);
+  const entGeral = meses.reduce((a, m) => a + m.ent, 0);
+  const pixGeral = meses.reduce((a, m) => a + m.pixTotal, 0);
+  const entriesGeral = meses.reduce((a, m) => a + m.entryCount, 0);
+  const avgGeral = entriesGeral > 0 ? totalGeral / entriesGeral : 0;
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -281,18 +282,12 @@ function CompMensal({ meses, avg }) {
             </thead>
             <tbody>
               {meses.map((m) => (
-                <tr key={m.id} className="lz-row-hover" style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
+                <tr key={m.id} className="lz-row-hover lz-row-zebra" style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
                   <td style={{ padding: '12px 14px', fontWeight: 600, color: TOKENS.text }}>{m.label}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.success, fontWeight: 600 }}>{fmt(m.rec)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pix ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pix)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{fmt(m.ent)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.nrec ? TOKENS.warning : TOKENS.textSubtle }}>{fmt(m.nrec)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.atip ? TOKENS.danger : TOKENS.textSubtle }}>{fmt(m.atip)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.total)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.val)}</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                    <Badge tone={confTone(m.conf)} size="sm" dot>{m.conf}</Badge>
-                  </td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{fmt(m.ent)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                     <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                       Ver detalhes <Icon d={I.chevRight} size={12} stroke={TOKENS.primary} />
@@ -303,19 +298,11 @@ function CompMensal({ meses, avg }) {
               {/* Totals row */}
               <tr style={{ background: TOKENS.panel }}>
                 <td style={{ padding: '12px 14px', fontWeight: 700, color: TOKENS.text, fontSize: 12 }}>Total {meses.length}m</td>
-                {['rec', 'pix', 'ent', 'nrec', 'atip', 'total', 'val'].map((k) => {
-                  const total = meses.reduce((a, m) => a + m[k], 0);
-                  return (
-                    <td key={k} className="num" style={{
-                      padding: '12px 14px', textAlign: 'right', fontWeight: 700,
-                      color: k === 'val' ? TOKENS.primaryFg : TOKENS.text,
-                      background: k === 'val' ? TOKENS.primarySoft : 'transparent',
-                    }}>{fmt(total)}</td>
-                  );
-                })}
-                <td colSpan={2} style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted, fontSize: 11.5 }}>
-                  Média validada: <span className="num" style={{ color: TOKENS.text, fontWeight: 600 }}>{fmt(avg)}</span>
-                </td>
+                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(totalGeral)}</td>
+                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(entGeral)}</td>
+                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(pixGeral)}</td>
+                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
+                <td style={{ padding: '12px 14px' }} />
               </tr>
             </tbody>
           </table>

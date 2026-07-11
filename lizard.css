@@ -227,6 +227,7 @@ body {
 
 /* ── Table row hover ────────────────────────────────── */
 .lz-row-hover { transition: background .1s; }
+.lz-row-zebra:nth-child(even) { background: var(--primary-soft); }
 .lz-row-hover:hover { background: var(--panel); }
 
 /* ── Sidebar nav item ───────────────────────────────── */
