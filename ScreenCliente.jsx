@@ -80,11 +80,21 @@ export default function ScreenCliente({
     : null;
   const poupancaReceita = despesa3m != null && receita3m != null ? receita3m - despesa3m : null;
 
+  const totaisMensais = mesesIncome.map((m) => m.total);
+  const volatilidade = (() => {
+    if (totaisMensais.length < 2) return null;
+    const media = totaisMensais.reduce((a, v) => a + v, 0) / totaisMensais.length;
+    if (media <= 0) return null;
+    const variancia = totaisMensais.reduce((a, v) => a + (v - media) ** 2, 0) / totaisMensais.length;
+    return Math.sqrt(variancia) / media;
+  })();
+
   const receita = {
     media3m: receita3m,
     media12m: receita12m,
     debito: debitoReceita,
     poupanca: poupancaReceita,
+    volatilidade,
   };
 
   const clienteFormatado = {
@@ -422,8 +432,17 @@ function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
             info="Média mensal das entradas totais nos últimos 3 meses." />
           <EvidKpi label="Receita anual" value={receita.media12m != null ? fmtBRL(receita.media12m) : '—'} sub="Média mensal (12m)" tone="blue" mono
             info="Média mensal das entradas totais no período analisado (até 12 meses)." />
-          <EvidKpi label="Atípicos" value="—" sub="Sem dado no período" tone="neutral" mono
-            info="Créditos atípicos (ex.: rendimento/resgate de investimento) que não compõem a renda recorrente. Detalhe disponível na composição da renda." />
+          <EvidKpi label="Volatilidade"
+            value={receita.volatilidade != null ? `${(receita.volatilidade * 100).toFixed(0)}%` : '—'}
+            sub={receita.volatilidade == null ? 'Sem dado no período'
+              : receita.volatilidade <= 0.25 ? 'Oscilação baixa'
+              : receita.volatilidade <= 0.5 ? 'Oscilação moderada'
+              : 'Oscilação alta'}
+            tone={receita.volatilidade == null ? 'neutral'
+              : receita.volatilidade <= 0.25 ? 'success'
+              : receita.volatilidade <= 0.5 ? 'warning'
+              : 'danger'} mono
+            info="Quanto a receita mensal (entradas totais) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
         </div>
 
         {/* Chart */}
