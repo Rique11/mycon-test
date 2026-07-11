@@ -249,6 +249,7 @@ function CompMensal({ meses }) {
     { id: 'total', label: 'Total de entradas', align: 'right' },
     { id: 'ent', label: 'Entre contas (PF)', align: 'right' },
     { id: 'pixTotal', label: 'PIX recebido', align: 'right' },
+    { id: 'entryCount', label: 'Número de entradas', align: 'right' },
     { id: 'avgEntry', label: 'Valor médio de entrada', align: 'right' },
     { id: 'ver', label: 'Detalhes', align: 'right' },
   ];
@@ -287,6 +288,7 @@ function CompMensal({ meses }) {
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.total)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{fmt(m.ent)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{m.entryCount}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
                   <td style={{ padding: '12px 14px', textAlign: 'right' }}>
                     <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -301,6 +303,7 @@ function CompMensal({ meses }) {
                 <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(totalGeral)}</td>
                 <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(entGeral)}</td>
                 <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(pixGeral)}</td>
+                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{entriesGeral}</td>
                 <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
                 <td style={{ padding: '12px 14px' }} />
               </tr>
