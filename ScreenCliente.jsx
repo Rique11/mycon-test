@@ -1,5 +1,6 @@
-// Tela de análise do cliente: contexto, resumo visual de KPIs, evidências de renda,
-// explicação ao operador e decisão sugerida, a partir do hook useClientData.
+// Tela de análise do cliente: contexto, resumo visual de KPIs, evidências de receita
+// (entradas totais via Open Finance), explicação ao operador e decisão sugerida,
+// a partir dos hooks useClientData e useIncomeComposition.
 
 import React from 'react';
 import { TOKENS, I } from './tokens.js';
@@ -12,7 +13,9 @@ import Sidebar from './components/Sidebar.jsx';
 import AsyncScreen from './components/AsyncScreen.jsx';
 import InfoTip from './components/InfoTip.jsx';
 import { useClientData } from './hooks/useClientData';
+import { useIncomeComposition } from './hooks/useIncomeComposition';
 import { useAuth } from './hooks/useAuth';
+import { mapMonth } from './services/domain';
 import { clientsApi } from './services/api';
 import { exportConsolidado } from './services/exportExcel.js';
 import { exportExtratoPdf } from './services/exportPdf.js';
@@ -30,12 +33,13 @@ export default function ScreenCliente({
 }) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useClientData(clientId);
+  const { data: incomeData, loading: incomeLoading } = useIncomeComposition(clientId);
   const [exportError, setExportError] = React.useState(null);
 
-  if (loading || error) {
+  if (loading || incomeLoading || error) {
     return (
       <AsyncScreen
-        loading={loading}
+        loading={loading || incomeLoading}
         error={error}
         loadingMessage="Carregando dados..."
         loadingSub="Aguarde enquanto buscamos as informações do cliente"
@@ -56,6 +60,32 @@ export default function ScreenCliente({
       </div>
     );
   }
+
+  const mesesIncome = (incomeData?.months || []).map(mapMonth);
+  const mesesAnalisados = incomeData?.summary?.monthsAnalyzed || mesesIncome.length;
+  const somaEntradas = mesesIncome.reduce((a, m) => a + m.total, 0);
+  const receita12m = mesesAnalisados > 0 ? somaEntradas / mesesAnalisados : null;
+  const ultimos3 = mesesIncome.slice(-3);
+  const receita3m = ultimos3.length > 0
+    ? ultimos3.reduce((a, m) => a + m.total, 0) / ultimos3.length
+    : null;
+
+  const rendaBase3m = parseFloat(insights.avgMonthlyIncome3m ?? 0);
+  const dividaTotal = insights.debtToIncomeRatio != null
+    ? parseFloat(insights.debtToIncomeRatio) * rendaBase3m
+    : null;
+  const debitoReceita = dividaTotal != null && receita3m > 0 ? dividaTotal / receita3m : null;
+  const despesa3m = insights.savingsCapacity3m != null
+    ? rendaBase3m - parseFloat(insights.savingsCapacity3m)
+    : null;
+  const poupancaReceita = despesa3m != null && receita3m != null ? receita3m - despesa3m : null;
+
+  const receita = {
+    media3m: receita3m,
+    media12m: receita12m,
+    debito: debitoReceita,
+    poupanca: poupancaReceita,
+  };
 
   const clienteFormatado = {
     nome: client.name || '—',
@@ -81,13 +111,7 @@ export default function ScreenCliente({
     email: client.email || '—',
   };
 
-  const mesesRenda = (insights.history || []).map(h => {
-    const [y, mo] = String(h.snapshotDate).slice(0, 7).split('-').map(Number);
-    return {
-      m: ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][(mo || 1) - 1] + '/' + String(y).slice(-2),
-      v: parseFloat(h.avgMonthlyIncome3m ?? 0),
-    };
-  }).slice(-12);
+  const mesesReceita = mesesIncome.slice(-12).map((m) => ({ m: m.label.toLowerCase(), v: m.total }));
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
@@ -138,12 +162,12 @@ export default function ScreenCliente({
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px 48px' }}>
           <div style={{ maxWidth: 1100, display: 'flex', flexDirection: 'column', gap: 20, paddingTop: 24 }}>
             <ContextoCliente cliente={clienteFormatado} />
-            <ResumoVisual cliente={clienteFormatado} insights={insights} />
-            <Evidencias cliente={clienteFormatado} mesesRenda={mesesRenda} onVerComposicao={onVerComposicao} />
-            <ExplicacaoOperador cliente={clienteFormatado} insights={insights} />
+            <ResumoVisual cliente={clienteFormatado} receita={receita} />
+            <Evidencias cliente={clienteFormatado} receita={receita} mesesReceita={mesesReceita} onVerComposicao={onVerComposicao} />
+            <ExplicacaoOperador cliente={clienteFormatado} receita={receita} />
             <DecisaoSugerida
               cliente={clienteFormatado}
-              insights={insights}
+              receita={receita}
               onAprovar={onAprovar}
               onRevisaoManual={onRevisaoManual}
               onDetalhes={onVerComposicao}
@@ -284,12 +308,12 @@ function Field({ label, value, mono = false }) {
 }
 
 // ───────── 2. Resumo visual ─────────
-function ResumoVisual({ cliente, insights }) {
+function ResumoVisual({ cliente, receita }) {
   const kpis = [
     {
-      label: 'Renda verificada', value: fmtBRL(cliente.rendaVerificada),
+      label: 'Receita', value: receita.media3m != null ? fmtBRL(receita.media3m) : '—',
       sub: 'Média mensal (3m)', tone: 'blue', icon: I.wallet, mono: true,
-      info: 'Média da renda mensal recorrente (pagadores presentes em ≥4 meses, via Open Finance) nos últimos 3 meses completos.',
+      info: 'Média mensal das entradas totais (todos os créditos identificados via Open Finance, incluindo transferências entre contas) nos últimos 3 meses.',
     },
     {
       label: 'Fonte de renda', value: cliente.fontes > 0 ? 'Detectada' : 'Não detectada',
@@ -297,14 +321,14 @@ function ResumoVisual({ cliente, insights }) {
       info: 'Indica se há pagador recorrente (créditos em ≥4 meses) identificado nos lançamentos do Open Finance.',
     },
     {
-      label: 'Débito/Renda', value: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—',
-      sub: 'Saldo devedor ÷ renda', tone: 'warning', icon: I.alert, mono: true,
-      info: 'Saldo devedor total dos empréstimos (Open Finance) dividido pela renda verificada mensal. Ex.: 2× = dívida equivale a 2 meses de renda.',
+      label: 'Débito/Receita', value: receita.debito != null ? `${receita.debito.toFixed(1)}×` : '—',
+      sub: 'Saldo devedor ÷ receita', tone: 'warning', icon: I.alert, mono: true,
+      info: 'Saldo devedor total dos empréstimos (Open Finance) dividido pela receita mensal (entradas totais). Ex.: 2× = dívida equivale a 2 meses de receita.',
     },
     {
-      label: 'Capacidade de poupança', value: insights?.savingsCapacity3m != null ? fmtBRL(insights.savingsCapacity3m) : '—',
-      sub: 'Renda − despesa (3m)', tone: 'success', icon: I.chart, mono: true,
-      info: 'Renda verificada menos a despesa média mensal dos últimos 3 meses. Valor negativo indica déficit (gasta mais que a renda comprovada).',
+      label: 'Capacidade de poupança', value: receita.poupanca != null ? fmtBRL(receita.poupanca) : '—',
+      sub: 'Receita − despesa (3m)', tone: 'success', icon: I.chart, mono: true,
+      info: 'Receita (entradas totais) menos a despesa média mensal dos últimos 3 meses. Valor negativo indica déficit (gasta mais do que recebe).',
     },
   ];
 
@@ -379,7 +403,7 @@ function ResumoVisual({ cliente, insights }) {
 }
 
 // ───────── 3. Evidências ─────────
-function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
+function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -394,10 +418,10 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
           <EvidKpi label="Salário recorrente" value={cliente.fontes > 0 ? 'Sim' : 'Não'} sub={cliente.fontes > 0 ? 'Depósitos em dia útil' : 'Não detectado'} tone={cliente.fontes > 0 ? 'success' : 'warning'}
             info="Há crédito de pagador recorrente (presente em ≥4 meses) identificado nos lançamentos do Open Finance." />
-          <EvidKpi label="Renda trimestral" value={fmtBRL(cliente.rendaVerificada)} sub="Média mensal (3m)" mono
-            info="Média da renda mensal validada nos últimos 3 meses completos." />
-          <EvidKpi label="Renda anual" value={fmtBRL(cliente.rendaDeclarada)} sub="Média mensal (12m)" tone="blue" mono
-            info="Média da renda mensal validada nos últimos 12 meses completos (anual)." />
+          <EvidKpi label="Receita trimestral" value={receita.media3m != null ? fmtBRL(receita.media3m) : '—'} sub="Média mensal (3m)" mono
+            info="Média mensal das entradas totais nos últimos 3 meses." />
+          <EvidKpi label="Receita anual" value={receita.media12m != null ? fmtBRL(receita.media12m) : '—'} sub="Média mensal (12m)" tone="blue" mono
+            info="Média mensal das entradas totais no período analisado (até 12 meses)." />
           <EvidKpi label="Atípicos" value="—" sub="Sem dado no período" tone="neutral" mono
             info="Créditos atípicos (ex.: rendimento/resgate de investimento) que não compõem a renda recorrente. Detalhe disponível na composição da renda." />
         </div>
@@ -407,10 +431,10 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: TOKENS.text }}>
-                Evolução da renda verificada
+                Evolução da receita
               </div>
               <div style={{ fontSize: 11.5, color: TOKENS.textMuted }}>
-                Média mensal · últimos 12 meses
+                Entradas totais por mês · últimos 12 meses
               </div>
             </div>
             {onVerComposicao && (
@@ -423,7 +447,7 @@ function Evidencias({ cliente, mesesRenda, onVerComposicao }) {
               </button>
             )}
           </div>
-          <IncomeChart data={mesesRenda.length > 0 ? mesesRenda : [{ m: 'Sem dados', v: 0 }]} />
+          <IncomeChart data={mesesReceita.length > 0 ? mesesReceita : [{ m: 'Sem dados', v: 0 }]} />
         </div>
       </Card>
     </div>
@@ -510,12 +534,12 @@ function IncomeChart({ data }) {
 }
 
 // ───────── 4. Explicação para o operador ─────────
-function ExplicacaoOperador({ cliente, insights }) {
+function ExplicacaoOperador({ cliente, receita }) {
   const rows = [
-    { l: 'Renda verificada (3m · média)',  v: fmtBRL(cliente.rendaVerificada), mono: true, color: TOKENS.primary },
-    { l: 'Renda verificada (12m · média)', v: fmtBRL(cliente.rendaDeclarada),  mono: true, color: TOKENS.text },
-    { l: 'Débito/Renda',          v: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—', mono: true, color: TOKENS.warning },
-    { l: 'Capacidade de poupança', v: insights?.savingsCapacity3m != null ? fmtBRL(insights.savingsCapacity3m) : '—', mono: true, color: TOKENS.success },
+    { l: 'Receita (3m · média)',  v: receita.media3m != null ? fmtBRL(receita.media3m) : '—', mono: true, color: TOKENS.primary },
+    { l: 'Receita (12m · média)', v: receita.media12m != null ? fmtBRL(receita.media12m) : '—', mono: true, color: TOKENS.text },
+    { l: 'Débito/Receita',        v: receita.debito != null ? `${receita.debito.toFixed(1)}×` : '—', mono: true, color: TOKENS.warning },
+    { l: 'Capacidade de poupança', v: receita.poupanca != null ? fmtBRL(receita.poupanca) : '—', mono: true, color: TOKENS.success },
   ];
 
   return (
@@ -555,7 +579,7 @@ function ExplicacaoOperador({ cliente, insights }) {
             </div>
             <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.7, textWrap: 'pretty' }}>
               {cliente.fontes > 0
-                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A renda verificada é de <strong>{fmtBRL(cliente.rendaVerificada)}</strong>/mês (média dos últimos 3 meses), com média anual de <strong>{fmtBRL(cliente.rendaDeclarada)}</strong>/mês.</>
+                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A receita é de <strong>{receita.media3m != null ? fmtBRL(receita.media3m) : '—'}</strong>/mês (média das entradas totais dos últimos 3 meses), com média anual de <strong>{receita.media12m != null ? fmtBRL(receita.media12m) : '—'}</strong>/mês.</>
                 : <>Não identificamos <strong>renda recorrente</strong> que comprove renda nos créditos do Open Finance (nenhum pagador com repetição mensal estável no período). A composição detalhada lista os créditos classificados.</>}
             </p>
           </div>
@@ -566,7 +590,7 @@ function ExplicacaoOperador({ cliente, insights }) {
 }
 
 // ───────── 5. Decisão sugerida ─────────
-function DecisaoSugerida({ cliente, insights, onAprovar, onRevisaoManual, onDetalhes }) {
+function DecisaoSugerida({ cliente, receita, onAprovar, onRevisaoManual, onDetalhes }) {
   const aprovado = cliente.fontes > 0;
   const recomendacao = aprovado ? 'Aprovar comprovação' : 'Solicitar complemento';
   const tone = aprovado ? 'success' : 'warning';
@@ -599,7 +623,7 @@ function DecisaoSugerida({ cliente, insights, onAprovar, onRevisaoManual, onDeta
                 </div>
                 <p style={{ margin: 0, fontSize: 12.5, color: TOKENS.text, lineHeight: 1.55 }}>
                   {aprovado
-                    ? <>Renda recorrente comprovada de <strong>{fmtBRL(cliente.rendaVerificada)}</strong>/mês. As evidências do Open Finance sustentam a comprovação automatizada.</>
+                    ? <>Renda recorrente comprovada, com receita média de <strong>{receita.media3m != null ? fmtBRL(receita.media3m) : '—'}</strong>/mês. As evidências do Open Finance sustentam a comprovação automatizada.</>
                     : <>Sem renda recorrente comprovável no período. Recomenda-se solicitar complemento ou revisar a composição detalhada.</>}
                 </p>
               </div>
@@ -670,8 +694,8 @@ function DecisaoSugerida({ cliente, insights, onAprovar, onRevisaoManual, onDeta
               { l: 'Email',             v: cliente.email },
               { l: 'CPF',               v: cliente.cpf, mono: true },
               { l: 'Status',            v: cliente.status },
-              { l: 'Renda verificada',  v: fmtBRL(cliente.rendaVerificada), mono: true },
-              { l: 'Débito/Renda',      v: insights?.debtToIncomeRatio != null ? `${parseFloat(insights.debtToIncomeRatio).toFixed(1)}×` : '—', mono: true },
+              { l: 'Receita',        v: receita.media3m != null ? fmtBRL(receita.media3m) : '—', mono: true },
+              { l: 'Débito/Receita', v: receita.debito != null ? `${receita.debito.toFixed(1)}×` : '—', mono: true },
             ].map((f, i, arr) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
