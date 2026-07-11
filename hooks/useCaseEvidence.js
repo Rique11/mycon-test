@@ -10,10 +10,30 @@ import React from 'react';
 import { clientsApi } from '../services/api';
 import { resolveClientForCase } from '../services/clientResolution.js';
 
+// IDs opacos (linkId ULID, hash sha256/512, UUID) que às vezes aparecem nos
+// campos de banco/instituição quando a API não traz um nome legível. Nunca
+// devem ser exibidos como se fossem o nome do banco.
+const ULID_RE = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HEX_TOKEN_RE = /^[0-9a-f]{20,}$/i;
+
+function isOpaqueToken(value) {
+  const raw = String(value || '').trim();
+  if (!raw || /\s/.test(raw)) return false;
+  if (ULID_RE.test(raw) || UUID_RE.test(raw) || HEX_TOKEN_RE.test(raw)) return true;
+  return raw.length >= 20 && /^[0-9A-Za-z]+$/.test(raw);
+}
+
+function truncateToken(value, max = 18) {
+  const raw = String(value || '');
+  return raw.length > max ? `${raw.slice(0, max)}…` : raw;
+}
+
 export function normalizeBankLabel(value = '') {
   const raw = String(value || '').trim();
   if (!raw) return '';
   if (!/[A-Za-zÀ-ÿ]/.test(raw)) return '';
+  if (isOpaqueToken(raw)) return '';
   const lower = raw.toLowerCase();
   if (lower.includes('open finance') || lower.includes('akropoli')) return '';
   if (lower.includes('itau') || lower.includes('itaú')) return 'Itau';
@@ -62,6 +82,46 @@ function getLinkCandidates(link) {
   ];
 }
 
+// Reúne os tokens brutos disponíveis (linhas do extrato, depois links, depois
+// os bancos já salvos no caso) seguindo a mesma prioridade de fonte usada
+// para resolver nomes, para servir de base ao rótulo genérico numerado
+// quando nenhum nome de instituição confiável é identificado.
+function collectCandidateTokens(caseItem, evidence) {
+  const rowTokens = [];
+  const rows = evidence?.statement?.rows || [];
+  rows.forEach((row) => {
+    getFieldCandidates(row).forEach((value) => {
+      const raw = String(value || '').trim();
+      if (raw) rowTokens.push(raw);
+    });
+  });
+  if (rowTokens.length) return rowTokens;
+
+  const linkTokens = [];
+  if (Array.isArray(evidence?.links)) {
+    evidence.links.forEach((link) => {
+      getLinkCandidates(link).forEach((value) => {
+        const raw = String(value || '').trim();
+        if (raw) linkTokens.push(raw);
+      });
+    });
+  }
+  if (linkTokens.length) return linkTokens;
+
+  return (caseItem.banks || []).map((value) => String(value || '').trim()).filter(Boolean);
+}
+
+function genericInstitutionLabels(caseItem, evidence) {
+  const seen = new Set();
+  const opaque = [];
+  collectCandidateTokens(caseItem, evidence).forEach((raw) => {
+    if (seen.has(raw) || !isOpaqueToken(raw)) return;
+    seen.add(raw);
+    opaque.push(raw);
+  });
+  return opaque.map((token, index) => `Instituição ${index + 1} (${truncateToken(token)})`);
+}
+
 export function deriveInstitutions(caseItem, evidence) {
   const names = new Set();
   const rows = evidence?.statement?.rows || [];
@@ -88,7 +148,12 @@ export function deriveInstitutions(caseItem, evidence) {
     });
   }
 
-  return Array.from(names);
+  if (names.size > 0) return Array.from(names);
+
+  // Nenhum nome de instituição confiável identificado — apenas identificadores
+  // opacos (linkId/hash). Em vez de expor o token bruto, mostra a quantidade
+  // de instituições distintas com um rótulo genérico numerado.
+  return genericInstitutionLabels(caseItem, evidence);
 }
 
 export function getAccountTags(caseItem) {
@@ -138,7 +203,16 @@ export function deriveAccountTags(caseItem, evidence) {
     }
   }
 
-  return getAccountTags(caseItem);
+  const localTags = getAccountTags(caseItem);
+  if (localTags.length) return localTags;
+
+  // Mesmo fallback genérico de deriveInstitutions, para que o rótulo de cada
+  // conta bata com a contagem exibida em "Instituições conectadas".
+  return genericInstitutionLabels(caseItem, evidence).map((bank) => ({
+    bank,
+    label: 'Conta considerada',
+    tone: 'neutral',
+  }));
 }
 
 const INITIAL_EVIDENCE_STATE = {

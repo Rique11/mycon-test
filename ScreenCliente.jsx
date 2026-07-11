@@ -12,6 +12,7 @@ import Avatar from './components/Avatar.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import AsyncScreen from './components/AsyncScreen.jsx';
 import InfoTip from './components/InfoTip.jsx';
+import EvidKpi from './components/EvidKpi.jsx';
 import { useClientData } from './hooks/useClientData';
 import { useIncomeComposition } from './hooks/useIncomeComposition';
 import { useAuth } from './hooks/useAuth';
@@ -466,28 +467,6 @@ function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
           <IncomeChart data={mesesReceita.length > 0 ? mesesReceita : [{ m: 'Sem dados', v: 0 }]} />
         </div>
       </Card>
-    </div>
-  );
-}
-
-function EvidKpi({ label, value, sub, tone, mono = false, info }) {
-  const colorMap = { success: TOKENS.success, warning: TOKENS.warning, danger: TOKENS.danger };
-  const color = colorMap[tone] ?? TOKENS.text;
-  return (
-    <div style={{
-      padding: '12px 14px', background: TOKENS.panel,
-      border: `1px solid ${TOKENS.border}`, borderRadius: 10,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-        <div style={{ fontSize: 11, color: TOKENS.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-          {label}
-        </div>
-        <InfoTip text={info} />
-      </div>
-      <div className={mono ? 'num' : ''} style={{ fontSize: 18, fontWeight: 700, color, letterSpacing: -0.3 }}>
-        {value}
-      </div>
-      <div style={{ fontSize: 11, color: TOKENS.textSubtle, marginTop: 3 }}>{sub}</div>
     </div>
   );
 }

@@ -290,6 +290,37 @@ export function mapMonth(mo: Record<string, unknown>, lines: Array<Record<string
   };
 }
 
+export interface ReceitaStats {
+  media12m: number | null;
+  volatilidade: number | null;
+}
+
+/**
+ * Deriva receita média mensal (12m) e volatilidade (coeficiente de variação
+ * das entradas totais mensais) a partir de um payload de composição de renda
+ * (`{ months, summary }`), para uso em cards de evidência de renda.
+ */
+export function computeReceitaStats(
+  income: { months?: Array<Record<string, unknown>>; summary?: { monthsAnalyzed?: number } } | null | undefined,
+): ReceitaStats {
+  const meses = (income?.months || []).map((mo) => mapMonth(mo));
+  const mesesAnalisados = income?.summary?.monthsAnalyzed || meses.length;
+  const somaEntradas = meses.reduce((a, m) => a + m.total, 0);
+  const media12m = mesesAnalisados > 0 ? somaEntradas / mesesAnalisados : null;
+
+  const totaisMensais = meses.map((m) => m.total);
+  let volatilidade: number | null = null;
+  if (totaisMensais.length >= 2) {
+    const media = totaisMensais.reduce((a, v) => a + v, 0) / totaisMensais.length;
+    if (media > 0) {
+      const variancia = totaisMensais.reduce((a, v) => a + (v - media) ** 2, 0) / totaisMensais.length;
+      volatilidade = Math.sqrt(variancia) / media;
+    }
+  }
+
+  return { media12m, volatilidade };
+}
+
 export interface DetailLine {
   d: unknown;
   desc: string;

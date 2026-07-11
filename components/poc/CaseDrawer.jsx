@@ -10,11 +10,12 @@ import Icon from '../Icon.jsx';
 import Badge from '../Badge.jsx';
 import Button from '../Button.jsx';
 import StepNumber from '../StepNumber.jsx';
+import EvidKpi from '../EvidKpi.jsx';
 import { clientsApi } from '../../services/api';
 import { exportConsolidado } from '../../services/exportExcel.js';
 import { exportExtratoPdf } from '../../services/exportPdf.js';
-import { PRODUCT_LABELS, getQueueBusinessRules, getStatusMeta } from '../../services/domain';
-import { maskCpf } from '../../lib/format';
+import { PRODUCT_LABELS, getQueueBusinessRules, getStatusMeta, computeReceitaStats } from '../../services/domain';
+import { maskCpf, fmtBRL } from '../../lib/format';
 import { resolveClientForCase } from '../../services/clientResolution.js';
 import { useCaseEvidence, deriveAccountTags, deriveInstitutions } from '../../hooks/useCaseEvidence.js';
 
@@ -341,6 +342,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
   const collection = getEffectiveCollectionInfo(caseItem, evidence);
   const output = getEffectiveOutputInfo(caseItem, meta, evidence, evidenceState.loading);
   const evidenceHash = getEvidenceHash(caseItem, evidence);
+  const receita = React.useMemo(() => computeReceitaStats(evidence?.income), [evidence]);
   const accountTags = React.useMemo(() => deriveAccountTags(caseItem, evidence), [caseItem, evidence]);
   const institutions = React.useMemo(() => deriveInstitutions(caseItem, evidence), [caseItem, evidence]);
 
@@ -570,6 +572,20 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
               <DrawerField label="Valor da carta" value={caseItem.letterValue || '-'} mono />
             <DrawerField label="Contemplação" value={formatDate(caseItem.contemplationDate)} />
             </div>
+            {consent.tone === 'success' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginTop: 10 }}>
+                <EvidKpi label="Receita anual" value={receita.media12m != null ? fmtBRL(receita.media12m) : '—'} sub="Média mensal (12m)" mono
+                  info="Média mensal das entradas totais no período analisado (até 12 meses)." />
+                <EvidKpi label="Volatilidade"
+                  value={receita.volatilidade != null ? `${(receita.volatilidade * 100).toFixed(0)}%` : '—'}
+                  sub={receita.volatilidade == null ? 'Sem dado no período'
+                    : receita.volatilidade <= 0.25 ? 'Oscilação baixa'
+                    : receita.volatilidade <= 0.5 ? 'Oscilação moderada'
+                    : 'Oscilação alta'}
+                  mono
+                  info="Quanto a receita mensal (entradas totais) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
+              </div>
+            )}
           </DrawerSection>
 
           <DrawerSection number={2} title="Status do consentimento" background={TOKENS.panel}>
@@ -581,11 +597,6 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
                   {copyLabel}
                 </Button>
               )}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <InfoLine label="Validade do link" value={consent.validity} />
-              <InfoLine label="ID do consentimento" value={consent.id} mono />
-              <InfoLine label="Link" value={caseItem.consentLink ? 'Disponivel para copiar' : 'Nao armazenado nesta linha'} />
             </div>
             {caseItem.status === 'expirado' && (
               <div style={{ marginTop: 12 }}>
