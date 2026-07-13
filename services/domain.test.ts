@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   POC_STATUS,
   QUEUE_ACTIONS,
+  computeRecurringIncome,
   confTone,
   getQueueBusinessRules,
   getStatusMeta,
@@ -13,6 +14,8 @@ import {
   isConsentAccepted,
   mapMonth,
   receiptMethod,
+  receitaTrimestral,
+  sourceKey,
 } from './domain';
 
 describe('getStatusMeta', () => {
@@ -112,6 +115,92 @@ describe('receiptMethod', () => {
     expect(receiptMethod('CONTA REMUNERADA - RESGATE APLICAÇÃO')).toBe('Resgate');
     expect(receiptMethod('CREDITO DIVERSO')).toBe('Outros');
     expect(receiptMethod(undefined)).toBe('Outros');
+  });
+});
+
+describe('sourceKey', () => {
+  it('normaliza a fonte pagadora independente da ordem e dos termos de método', () => {
+    expect(sourceKey('FABRICIO HOOG CRED RECEBIMENTO PIX')).toBe(sourceKey('PIX RECEBIDO FABRICIO HOOG'));
+    expect(sourceKey('EMPRESA XYZ LTDA - TED 123456')).toBe('EMPRESA LTDA XYZ');
+    expect(sourceKey(undefined)).toBe('');
+  });
+});
+
+describe('computeRecurringIncome', () => {
+  it('critério 1: mesmo valor em 2+ meses consecutivos é recorrente', () => {
+    const r = computeRecurringIncome([
+      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE A' },
+      { yearMonth: '2025-02', amount: 100, classification: 'NREC', description: 'PIX FONTE B' },
+      { yearMonth: '2025-04', amount: 100, classification: 'NREC', description: 'PIX FONTE C' },
+    ]);
+    expect(r.total).toBe(200);
+    expect(r.entryCount).toBe(2);
+  });
+
+  it('critério 2: mesma fonte em 3+ meses consecutivos é recorrente mesmo com valores variáveis', () => {
+    const r = computeRecurringIncome([
+      { yearMonth: '2025-01', amount: 90, classification: 'NREC', description: 'PIX RECEBIDO EMPRESA XYZ' },
+      { yearMonth: '2025-02', amount: 110, classification: 'NREC', description: 'EMPRESA XYZ CRED PIX' },
+      { yearMonth: '2025-03', amount: 130, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
+    ]);
+    expect(r.total).toBe(330);
+    expect(r.entryCount).toBe(3);
+  });
+
+  it('mesma fonte em apenas 2 meses consecutivos com valores diferentes não é recorrente', () => {
+    const r = computeRecurringIncome([
+      { yearMonth: '2025-01', amount: 90, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
+      { yearMonth: '2025-02', amount: 110, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
+    ]);
+    expect(r.total).toBe(0);
+  });
+
+  it('mesmo valor em meses não consecutivos não é recorrente', () => {
+    const r = computeRecurringIncome([
+      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE A' },
+      { yearMonth: '2025-03', amount: 100, classification: 'NREC', description: 'PIX FONTE B' },
+    ]);
+    expect(r.total).toBe(0);
+  });
+
+  it('ignora transferências entre contas e créditos atípicos', () => {
+    const r = computeRecurringIncome([
+      { yearMonth: '2025-01', amount: 100, classification: 'ENT', description: 'TED MESMA TITULARIDADE' },
+      { yearMonth: '2025-02', amount: 100, classification: 'ENT', description: 'TED MESMA TITULARIDADE' },
+      { yearMonth: '2025-01', amount: 500, classification: 'ATIP', description: 'ESTORNO COMPRA' },
+      { yearMonth: '2025-02', amount: 500, classification: 'ATIP', description: 'ESTORNO COMPRA' },
+    ]);
+    expect(r.total).toBe(0);
+  });
+
+  it('aceita lista vazia ou nula', () => {
+    expect(computeRecurringIncome(null)).toEqual({ total: 0, entryCount: 0 });
+    expect(computeRecurringIncome([])).toEqual({ total: 0, entryCount: 0 });
+  });
+
+  it('considera virada de ano como meses consecutivos', () => {
+    const r = computeRecurringIncome([
+      { yearMonth: '2024-12', amount: 100, classification: 'NREC', description: 'PIX FONTE A' },
+      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE B' },
+    ]);
+    expect(r.total).toBe(200);
+  });
+});
+
+describe('receitaTrimestral', () => {
+  it('soma o total de entradas dos últimos 3 meses', () => {
+    const meses = [
+      mapMonth({ yearMonth: '2025-01', totalCredits: 100 }),
+      mapMonth({ yearMonth: '2025-02', totalCredits: 200 }),
+      mapMonth({ yearMonth: '2025-03', totalCredits: 300 }),
+      mapMonth({ yearMonth: '2025-04', totalCredits: 400 }),
+    ];
+    expect(receitaTrimestral(meses)).toBe(900);
+  });
+
+  it('funciona com menos de 3 meses', () => {
+    expect(receitaTrimestral([mapMonth({ yearMonth: '2025-04', totalCredits: 400 })])).toBe(400);
+    expect(receitaTrimestral([])).toBe(0);
   });
 });
 

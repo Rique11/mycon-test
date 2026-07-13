@@ -18,7 +18,7 @@ import { clientsApi } from './services/api';
 import { exportConsolidado } from './services/exportExcel.js';
 import { exportExtratoPdf } from './services/exportPdf.js';
 import { fmtBRL as fmt } from './lib/format';
-import { confTone, mapMonth, groupDetail } from './services/domain';
+import { confTone, mapMonth, groupDetail, computeRecurringIncome, receitaTrimestral } from './services/domain';
 
 // ─── Tela: Composição da renda verificada ───────────────────────────────────
 
@@ -107,7 +107,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '0 32px 40px' }}>
-            <ResumoComposicao meses={meses} summary={summary} />
+            <ResumoComposicao meses={meses} summary={summary} detail={data?.detail || []} />
             <CompMensal meses={meses} />
             <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} />
             <CriterioCard />
@@ -174,26 +174,29 @@ function CompHeader({ onVoltar, onExportExcel, onExportPdf, exportDisabled = fal
 }
 
 // ───────── 1. Resumo da composição ─────────
-function ResumoComposicao({ meses, summary }) {
+function ResumoComposicao({ meses, summary, detail }) {
   const sum = (k) => meses.reduce((a, m) => a + m[k], 0);
   const mesesRecebidos = summary.monthsAnalyzed || meses.length || 1;
+  const rendaRecorrente = React.useMemo(() => computeRecurringIncome(detail), [detail]);
+  const trimestre = React.useMemo(() => receitaTrimestral(meses), [meses]);
+  // Ordem de exibição definida pelo produto: 1, 8, 7, 6, 4, 5, 2, 3
   const items = [
     { l: 'Receita média', v: fmt(sum('total') / mesesRecebidos), s: `Média mensal (${summary.monthsAnalyzed}m)`, icon: I.wallet, tone: 'blue', mono: true,
       info: 'Total de entradas do período (inclui transferências entre contas) dividido pelos meses recebidos via Open Finance.' },
-    { l: 'Receita recorrente', v: `${summary.recurringMonths} / ${summary.monthsAnalyzed}`, s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true,
-      info: 'Quantidade de meses com receita recorrente identificada em relação ao total de meses analisados.' },
-    { l: 'Confiança da análise', v: summary.confidence, s: 'Padrão dos créditos', icon: I.shieldCheck, tone: confTone(summary.confidence), isBadge: true, badgeTone: confTone(summary.confidence),
-      info: 'Nível de confiança da classificação, com base no padrão e na estabilidade dos créditos identificados no período.' },
+    { l: 'Receita total', v: fmt(sum('total')), s: 'Soma do período', icon: I.chart, tone: 'success', mono: true,
+      info: 'Soma de todas as entradas do período, incluindo transferências entre contas.' },
+    { l: 'Renda recorrente', v: fmt(rendaRecorrente.total), s: 'No período', icon: I.send, tone: 'blue', mono: true,
+      info: 'Entradas com o mesmo valor recebido em 2 ou mais meses consecutivos, ou recebidas de uma mesma fonte em 3 ou mais meses consecutivos. Basta atender a um dos critérios.' },
+    { l: 'Receita trimestral', v: fmt(trimestre), s: 'Últimos 3 meses', icon: I.history, tone: 'warning', mono: true,
+      info: 'Total de entradas recebidas nos últimos 3 meses analisados.' },
     { l: 'Créditos atípicos', v: fmt(sum('atip')), s: 'Removidos da média', icon: I.alert, tone: 'danger', mono: true,
       info: 'Créditos fora do padrão (ex.: estornos, resgates de investimento) excluídos do cálculo da renda validada.' },
     { l: 'Entre contas', v: fmt(sum('ent')), s: 'No período', icon: I.link, tone: 'purple', mono: true,
       info: 'Transferências entre contas da mesma titularidade identificadas no período; não representam nova geração de renda.' },
-    { l: 'Não recorrentes', v: fmt(sum('nrec')), s: 'No período', icon: I.history, tone: 'warning', mono: true,
-      info: 'Entradas sem padrão de recorrência no período; normalmente não compõem a renda validada.' },
-    { l: 'PIX recorrente validável', v: fmt(sum('pix')), s: 'No período', icon: I.send, tone: 'blue', mono: true,
-      info: 'PIX com padrão recorrente que podem entrar na renda validada quando houver consistência de origem e valor.' },
-    { l: 'Receita total', v: fmt(sum('total')), s: 'Soma do período', icon: I.chart, tone: 'success', mono: true,
-      info: 'Soma de todas as entradas do período, incluindo transferências entre contas.' },
+    { l: 'Receita recorrente', v: `${summary.recurringMonths} / ${summary.monthsAnalyzed}`, s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true,
+      info: 'Quantidade de meses com receita recorrente identificada em relação ao total de meses analisados.' },
+    { l: 'Confiança da análise', v: summary.confidence, s: 'Padrão dos créditos', icon: I.shieldCheck, tone: confTone(summary.confidence), isBadge: true, badgeTone: confTone(summary.confidence),
+      info: 'Nível de confiança da classificação, com base no padrão e na estabilidade dos créditos identificados no período.' },
   ];
   const tonesMap = {
     blue: { bg: TOKENS.primarySoft, fg: TOKENS.primary },
@@ -452,7 +455,7 @@ function DetailGroup({ title, items }) {
 function CriterioCard() {
   const bullets = [
     { l: 'Receita recorrente mensal', v: 'entra na renda validada', tone: 'success' },
-    { l: 'PIX recorrente validável', v: 'pode entrar quando houver consistência', tone: 'blue' },
+    { l: 'Renda recorrente', v: 'valor repetido em 2+ meses consecutivos ou mesma fonte em 3+ meses consecutivos', tone: 'blue' },
     { l: 'Transferência entre contas', v: 'não entra', tone: 'neutral' },
     { l: 'Entrada não recorrente', v: 'normalmente não entra', tone: 'warning' },
     { l: 'Crédito atípico / excluído', v: 'não entra', tone: 'danger' },

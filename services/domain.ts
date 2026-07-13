@@ -2,7 +2,9 @@
  * domain.ts — regras de negócio puras e constantes de domínio da POC Mycon:
  * status da fila operacional, filtros, regras de consentimento e classificação
  * de lançamentos da composição de renda: agrupamento em receita vs. transferências
- * entre contas do titular, com método de recebimento (PIX, TED, ...) por lançamento.
+ * entre contas do titular, com método de recebimento (PIX, TED, ...) por lançamento,
+ * detecção de renda recorrente (valor repetido em meses consecutivos ou mesma fonte
+ * pagadora em meses consecutivos) e receita trimestral (últimos 3 meses).
  */
 
 import { num, ymLabels } from '../lib/format';
@@ -319,6 +321,123 @@ export function computeReceitaStats(
   }
 
   return { media12m, volatilidade };
+}
+
+// ── Renda recorrente e receita trimestral ────────────────────────────────────
+
+export const RECURRING_AMOUNT_MIN_MONTHS = 2;
+export const RECURRING_SOURCE_MIN_MONTHS = 3;
+
+const SOURCE_STOPWORDS = new Set([
+  'PIX', 'TED', 'DOC', 'CRED', 'CREDITO', 'DEBITO', 'RECEBIMENTO', 'RECEBIDA', 'RECEBIDO',
+  'TRANSF', 'TRANSFERENCIA', 'ENVIO', 'PAGAMENTO', 'BOLETO', 'DEPOSITO', 'CONTA',
+  'DE', 'DA', 'DO', 'DAS', 'DOS', 'EM', 'PARA', 'POR',
+]);
+
+/**
+ * Deriva a chave da fonte pagadora a partir da descrição do lançamento,
+ * removendo acentos, pontuação, números e termos genéricos de método bancário,
+ * de modo que "FABRICIO HOOG CRED RECEBIMENTO PIX" e "PIX RECEBIDO FABRICIO HOOG"
+ * apontem para a mesma fonte.
+ */
+export function sourceKey(description: unknown): string {
+  return String(description || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^A-Z0-9 ]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word && !SOURCE_STOPWORDS.has(word) && !/^\d+$/.test(word))
+    .sort()
+    .join(' ');
+}
+
+function ymIndex(ym: unknown): number | null {
+  const [y, m] = String(ym || '').split('-').map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) return null;
+  return y * 12 + (m - 1);
+}
+
+function consecutiveRunMonths(months: Iterable<number>, minLen: number): Set<number> {
+  const sorted = [...new Set(months)].sort((a, b) => a - b);
+  const qualifying = new Set<number>();
+  let start = 0;
+  for (let i = 1; i <= sorted.length; i += 1) {
+    if (i === sorted.length || sorted[i] !== sorted[i - 1] + 1) {
+      if (i - start >= minLen) {
+        for (let j = start; j < i; j += 1) qualifying.add(sorted[j]);
+      }
+      start = i;
+    }
+  }
+  return qualifying;
+}
+
+export interface RecurringIncomeResult {
+  total: number;
+  entryCount: number;
+}
+
+/**
+ * Calcula a renda recorrente a partir do detalhamento de lançamentos
+ * (`detail` do payload de composição de renda). Um lançamento de crédito é
+ * considerado recorrente quando atende a pelo menos um dos critérios:
+ *  1. o mesmo valor foi recebido em 2 ou mais meses consecutivos;
+ *  2. a mesma fonte pagadora (derivada da descrição) creditou valores em
+ *     3 ou mais meses consecutivos.
+ * Transferências entre contas do titular (ENT) e créditos atípicos (ATIP)
+ * não compõem renda e ficam fora do cálculo.
+ */
+export function computeRecurringIncome(
+  lines: Array<Record<string, unknown>> | null | undefined,
+): RecurringIncomeResult {
+  const candidates = (lines || [])
+    .map((l) => ({
+      month: ymIndex(l.yearMonth),
+      amountCents: Math.round(num(l.amount) * 100),
+      source: sourceKey(l.description),
+      amount: num(l.amount),
+      classification: String(l.classification || ''),
+    }))
+    .filter((l) => l.month != null && l.amountCents > 0 && l.classification !== 'ENT' && l.classification !== 'ATIP');
+
+  const monthsByAmount = new Map<number, number[]>();
+  const monthsBySource = new Map<string, number[]>();
+  candidates.forEach((l) => {
+    monthsByAmount.set(l.amountCents, [...(monthsByAmount.get(l.amountCents) || []), l.month as number]);
+    if (l.source) {
+      monthsBySource.set(l.source, [...(monthsBySource.get(l.source) || []), l.month as number]);
+    }
+  });
+
+  const amountRuns = new Map<number, Set<number>>();
+  monthsByAmount.forEach((months, amountCents) => {
+    amountRuns.set(amountCents, consecutiveRunMonths(months, RECURRING_AMOUNT_MIN_MONTHS));
+  });
+  const sourceRuns = new Map<string, Set<number>>();
+  monthsBySource.forEach((months, source) => {
+    sourceRuns.set(source, consecutiveRunMonths(months, RECURRING_SOURCE_MIN_MONTHS));
+  });
+
+  return candidates.reduce<RecurringIncomeResult>((acc, l) => {
+    const byAmount = amountRuns.get(l.amountCents)?.has(l.month as number) ?? false;
+    const bySource = l.source ? (sourceRuns.get(l.source)?.has(l.month as number) ?? false) : false;
+    if (byAmount || bySource) {
+      return { total: acc.total + l.amount, entryCount: acc.entryCount + 1 };
+    }
+    return acc;
+  }, { total: 0, entryCount: 0 });
+}
+
+/**
+ * Soma o total de entradas dos últimos 3 meses analisados (ordenados por
+ * ano-mês), para exibição da receita trimestral no resumo da composição.
+ */
+export function receitaTrimestral(meses: MonthComposition[]): number {
+  return [...meses]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .slice(-3)
+    .reduce((acc, m) => acc + m.total, 0);
 }
 
 export interface DetailLine {
