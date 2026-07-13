@@ -513,7 +513,7 @@ function IncomeChart({ data }) {
         return (
           <g key={`${d.m}-${i}`}>
             <rect x={x} y={y} width={barW} height={barH} rx={3}
-              fill={TOKENS.primary} opacity={0.85} />
+              fill={TOKENS.brandLight} />
             <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
               {label}
             </text>
