@@ -14,11 +14,11 @@ export default function InfoTip({ text }) {
     >
       <span style={{
         width: 16, height: 16, borderRadius: '50%',
-        border: `1px solid ${show ? TOKENS.primary : TOKENS.border}`,
-        color: show ? TOKENS.primary : TOKENS.textSubtle,
+        background: show ? TOKENS.primaryHover : TOKENS.primary,
+        color: '#FFFFFF',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 10, fontWeight: 700, fontFamily: 'Georgia, serif', fontStyle: 'italic',
-        cursor: 'help', userSelect: 'none', transition: 'color .12s, border-color .12s',
+        cursor: 'help', userSelect: 'none', transition: 'background .12s',
       }}>i</span>
       {show && (
         <span role="tooltip" style={{

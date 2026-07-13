@@ -51,6 +51,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
   });
   const meses = (data?.months || []).map((mo) => mapMonth(mo, detailByMonth[String(mo.yearMonth)] || []));
   const summary = data?.summary || { validatedIncomeAvg: 0, monthsAnalyzed: meses.length, recurringMonths: 0, confidence: 'Baixa' };
+  const recurringByMonth = recurringDetailByMonth(data?.detail || [], meses);
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
@@ -113,10 +114,10 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
               <ResumoComposicao meses={meses} summary={summary} detail={data?.detail || []} />
             </SectionBand>
             <SectionBand n={2}>
-              <CompMensal meses={meses} />
+              <CompMensal meses={meses} recurringByMonth={recurringByMonth} />
             </SectionBand>
             <SectionBand n={3}>
-              <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} detail={data?.detail || []} />
+              <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} recurringByMonth={recurringByMonth} />
             </SectionBand>
             <SectionBand n={4}>
               <CriterioCard />
@@ -271,78 +272,101 @@ function ResumoComposicao({ meses, summary, detail }) {
 }
 
 // ───────── 2. Composição mensal da renda (tabela ampla) ─────────
-function CompMensal({ meses }) {
+function CompMensal({ meses, recurringByMonth }) {
+  const [open, setOpen] = React.useState(true);
   const cols = [
     { id: 'mes', label: 'Mês', align: 'left' },
     { id: 'total', label: 'Total de entradas', align: 'right' },
     { id: 'ent', label: 'Entre contas (PF)', align: 'right' },
     { id: 'pixTotal', label: 'PIX recebido', align: 'right' },
+    { id: 'recorrente', label: 'Renda Recorrente', align: 'right' },
     { id: 'entryCount', label: 'Número de entradas', align: 'right' },
     { id: 'avgEntry', label: 'Valor médio de entrada', align: 'right' },
     { id: 'maxEntry', label: 'Maior entrada', align: 'right' },
     { id: 'ver', label: 'Detalhes', align: 'right' },
   ];
+  // Renda recorrente identificada em cada mês (mesmo critério do grupo "C. Renda
+  // Recorrente" do detalhamento), somada aqui apenas para exibição na coluna da tabela.
+  const recorrenteByMonth = {};
+  meses.forEach((m) => {
+    recorrenteByMonth[m.id] = (recurringByMonth?.[m.id] || []).reduce((a, r) => a + r.val, 0);
+  });
   const totalGeral = meses.reduce((a, m) => a + m.total, 0);
   const entGeral = meses.reduce((a, m) => a + m.ent, 0);
   const pixGeral = meses.reduce((a, m) => a + m.pixTotal, 0);
+  const recorrenteGeral = meses.reduce((a, m) => a + recorrenteByMonth[m.id], 0);
   const entriesGeral = meses.reduce((a, m) => a + m.entryCount, 0);
   const avgGeral = entriesGeral > 0 ? totalGeral / entriesGeral : 0;
   const maxGeral = meses.reduce((a, m) => Math.max(a, m.maxEntry), 0);
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+      <button onClick={() => setOpen((v) => !v)} style={{
+        display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4,
+        background: 'transparent', border: 0, padding: 0, cursor: 'pointer', textAlign: 'left',
+      }}>
         <StepNumber n={2} />
         <span style={{ fontSize: 17, fontWeight: 700, color: TOKENS.title, letterSpacing: -0.2 }}>Composição mensal da renda</span>
-      </div>
+        <div style={{
+          width: 24, height: 24, borderRadius: 7, background: TOKENS.primarySoft,
+          color: TOKENS.primary, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .15s',
+        }}>
+          <Icon d={I.chevRight} size={13} stroke={TOKENS.primary} strokeWidth={2} />
+        </div>
+      </button>
       <p style={{ margin: '0 0 12px 32px', fontSize: 12.5, color: TOKENS.textMuted, maxWidth: 760 }}>
         Composição dos créditos identificados em cada mês e o valor efetivamente considerado para a renda validada.
       </p>
-      <Card padding={0}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-            <thead>
-              <tr style={{ background: TOKENS.brandLight, borderBottom: `1px solid ${TOKENS.brandLight}` }}>
-                {cols.map((c) => (
-                  <th key={c.id} style={{
-                    padding: '11px 14px', textAlign: c.align, fontWeight: 700,
-                    color: '#FFFFFF', fontSize: 11, textTransform: 'uppercase',
-                    letterSpacing: 0.4, whiteSpace: 'nowrap',
-                  }}>{c.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {meses.map((m) => (
-                <tr key={m.id} className="lz-row-hover lz-row-zebra" style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
-                  <td style={{ padding: '12px 14px', fontWeight: 600, color: TOKENS.text }}>{m.label}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.total)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{fmt(m.ent)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{m.entryCount}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.maxEntry)}</td>
-                  <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                    <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      Ver detalhes <Icon d={I.chevRight} size={12} stroke={TOKENS.primary} />
-                    </a>
-                  </td>
+      {open && (
+        <Card padding={0} style={{ overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr style={{ background: TOKENS.brandLight, borderBottom: `1px solid ${TOKENS.brandLight}` }}>
+                  {cols.map((c) => (
+                    <th key={c.id} style={{
+                      padding: '11px 14px', textAlign: c.align, fontWeight: 700,
+                      color: '#FFFFFF', fontSize: 11, textTransform: 'uppercase',
+                      letterSpacing: 0.4, whiteSpace: 'nowrap',
+                    }}>{c.label}</th>
+                  ))}
                 </tr>
-              ))}
-              {/* Totals row */}
-              <tr style={{ background: TOKENS.panel }}>
-                <td style={{ padding: '12px 14px', fontWeight: 700, color: TOKENS.text, fontSize: 12 }}>Total {meses.length}m</td>
-                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(totalGeral)}</td>
-                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(entGeral)}</td>
-                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(pixGeral)}</td>
-                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{entriesGeral}</td>
-                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
-                <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(maxGeral)}</td>
-                <td style={{ padding: '12px 14px' }} />
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody>
+                {meses.map((m) => (
+                  <tr key={m.id} className="lz-row-hover lz-row-zebra" style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
+                    <td style={{ padding: '12px 14px', fontWeight: 600, color: TOKENS.text }}>{m.label}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.total)}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{fmt(m.ent)}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: recorrenteByMonth[m.id] ? TOKENS.success : TOKENS.textSubtle }}>{fmt(recorrenteByMonth[m.id])}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{m.entryCount}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.maxEntry)}</td>
+                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
+                      <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        Ver detalhes <Icon d={I.chevRight} size={12} stroke={TOKENS.primary} />
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+                {/* Totals row */}
+                <tr style={{ background: TOKENS.panel }}>
+                  <td style={{ padding: '12px 14px', fontWeight: 700, color: TOKENS.text, fontSize: 12 }}>Total {meses.length}m</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(totalGeral)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(entGeral)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(pixGeral)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.success }}>{fmt(recorrenteGeral)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{entriesGeral}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(maxGeral)}</td>
+                  <td style={{ padding: '12px 14px' }} />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
@@ -370,14 +394,13 @@ const DEFAULT_COLUMNS = [
 ];
 const RECURRING_COLUMNS = [...DEFAULT_COLUMNS, { key: 'statusLabel', label: 'Status' }];
 
-function DetalhamentoMeses({ meses, detailByMonth, detail }) {
+function DetalhamentoMeses({ meses, detailByMonth, recurringByMonth }) {
   const [open, setOpen] = React.useState(() => {
     const init = {};
     meses.forEach((m, i) => { init[m.id] = i === 0; });
     return init;
   });
   const allOpen = meses.length > 0 && meses.every((m) => open[m.id]);
-  const recurringByMonth = React.useMemo(() => recurringDetailByMonth(detail, meses), [detail, meses]);
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
