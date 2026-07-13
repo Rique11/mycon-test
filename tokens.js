@@ -29,6 +29,7 @@ export const TOKENS = {
   primarySoft: '#EAF0FE',
   primarySoftBorder: '#D4E0FB',
   brand: '#102A73',
+  brandLight: '#1B3A8C',
 
   // Semânticos
   success: '#1B7F4B',

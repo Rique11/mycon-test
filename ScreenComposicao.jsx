@@ -480,7 +480,7 @@ function DetailGroup({ title, items, columns = DEFAULT_COLUMNS }) {
         <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ background: TOKENS.brand, borderBottom: `1px solid ${TOKENS.brand}` }}>
+              <tr style={{ background: TOKENS.brandLight, borderBottom: `1px solid ${TOKENS.brandLight}` }}>
                 {columns.map((c) => (
                   <th key={c.key} style={{
                     padding: '9px 14px', textAlign: c.align === 'right' ? 'right' : 'left',
