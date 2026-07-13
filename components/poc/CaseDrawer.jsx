@@ -14,7 +14,7 @@ import EvidKpi from '../EvidKpi.jsx';
 import { clientsApi } from '../../services/api';
 import { exportConsolidado } from '../../services/exportExcel.js';
 import { exportExtratoPdf } from '../../services/exportPdf.js';
-import { PRODUCT_LABELS, getQueueBusinessRules, getStatusMeta, computeReceitaStats } from '../../services/domain';
+import { PRODUCT_LABELS, getQueueBusinessRules, getStatusMeta, computeReceitaStats, getConsentGeneratedAt } from '../../services/domain';
 import { maskCpf, fmtBRL } from '../../lib/format';
 import { resolveClientForCase } from '../../services/clientResolution.js';
 import { useCaseEvidence, deriveAccountTags, deriveInstitutions } from '../../hooks/useCaseEvidence.js';
@@ -317,6 +317,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
   const baseMeta = getStatusMeta(caseItem.status);
   const events = getCaseEvents(caseItem);
   const consent = getConsentInfo(caseItem);
+  const consentStartedAt = getConsentGeneratedAt(caseItem);
   const [openingClient, setOpeningClient] = React.useState(false);
   const [openClientError, setOpenClientError] = React.useState('');
   const [drawerMessage, setDrawerMessage] = React.useState('');
@@ -605,6 +606,12 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
                   {copyLabel}
                 </Button>
               )}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <InfoLine
+                label="Início do consentimento"
+                value={consentStartedAt ? formatDateTime(consentStartedAt.toISOString()) : '—'}
+              />
             </div>
             {caseItem.status === 'expirado' && (
               <div style={{ marginTop: 12 }}>
