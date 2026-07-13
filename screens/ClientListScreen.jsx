@@ -59,7 +59,7 @@ export default function ClientListScreen({ onSelectClient, onLogout, activeItem 
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
-          <div style={{ maxWidth: 1200 }}>
+          <div style={{ maxWidth: 1200, width: '100%', margin: '0 auto' }}>
             {/* Search */}
             <div style={{ marginBottom: 24 }}>
               <input
