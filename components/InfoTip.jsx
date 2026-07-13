@@ -14,7 +14,7 @@ export default function InfoTip({ text }) {
     >
       <span style={{
         width: 16, height: 16, borderRadius: '50%',
-        background: show ? TOKENS.primaryHover : TOKENS.primary,
+        background: show ? TOKENS.brand : TOKENS.brandLight,
         color: '#FFFFFF',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 10, fontWeight: 700, fontFamily: 'Georgia, serif', fontStyle: 'italic',

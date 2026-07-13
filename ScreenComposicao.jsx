@@ -280,10 +280,10 @@ function CompMensal({ meses, recurringByMonth }) {
     { id: 'ent', label: 'Entre contas (PF)', align: 'right' },
     { id: 'pixTotal', label: 'PIX recebido', align: 'right' },
     { id: 'recorrente', label: 'Renda Recorrente', align: 'right' },
-    { id: 'entryCount', label: 'Número de entradas', align: 'right' },
+    { id: 'entryCount', label: 'Número de entradas', align: 'center' },
     { id: 'avgEntry', label: 'Valor médio de entrada', align: 'right' },
     { id: 'maxEntry', label: 'Maior entrada', align: 'right' },
-    { id: 'ver', label: 'Detalhes', align: 'right' },
+    { id: 'ver', label: 'Detalhes', align: 'center' },
   ];
   // Renda recorrente identificada em cada mês (mesmo critério do grupo "C. Renda
   // Recorrente" do detalhamento), somada aqui apenas para exibição na coluna da tabela.
@@ -340,11 +340,11 @@ function CompMensal({ meses, recurringByMonth }) {
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{fmt(m.ent)}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: recorrenteByMonth[m.id] ? TOKENS.success : TOKENS.textSubtle }}>{fmt(recorrenteByMonth[m.id])}</td>
-                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{m.entryCount}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'center', color: TOKENS.textMuted }}>{m.entryCount}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.maxEntry)}</td>
-                    <td style={{ padding: '12px 14px', textAlign: 'right' }}>
-                      <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                      <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                         Ver detalhes <Icon d={I.chevRight} size={12} stroke={TOKENS.primary} />
                       </a>
                     </td>
@@ -357,7 +357,7 @@ function CompMensal({ meses, recurringByMonth }) {
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(entGeral)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(pixGeral)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.success }}>{fmt(recorrenteGeral)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{entriesGeral}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.text }}>{entriesGeral}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(maxGeral)}</td>
                   <td style={{ padding: '12px 14px' }} />
