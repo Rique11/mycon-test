@@ -281,8 +281,8 @@ function CompMensal({ meses, recurringByMonth }) {
     { id: 'pixTotal', label: 'PIX recebido', align: 'right' },
     { id: 'recorrente', label: 'Renda Recorrente', align: 'right' },
     { id: 'entryCount', label: 'Número de entradas', align: 'center' },
-    { id: 'avgEntry', label: 'Valor médio de entrada', align: 'right' },
-    { id: 'maxEntry', label: 'Maior entrada', align: 'right' },
+    { id: 'avgEntry', label: 'Valor médio de entrada', align: 'center' },
+    { id: 'maxEntry', label: 'Maior entrada', align: 'center' },
     { id: 'ver', label: 'Detalhes', align: 'center' },
   ];
   // Renda recorrente identificada em cada mês (mesmo critério do grupo "C. Renda
@@ -341,8 +341,8 @@ function CompMensal({ meses, recurringByMonth }) {
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: recorrenteByMonth[m.id] ? TOKENS.success : TOKENS.textSubtle }}>{fmt(recorrenteByMonth[m.id])}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'center', color: TOKENS.textMuted }}>{m.entryCount}</td>
-                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
-                    <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.maxEntry)}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'center', color: TOKENS.text }}>{fmt(m.maxEntry)}</td>
                     <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                       <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
                         Ver detalhes <Icon d={I.chevRight} size={12} stroke={TOKENS.primary} />
@@ -358,8 +358,8 @@ function CompMensal({ meses, recurringByMonth }) {
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(pixGeral)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.success }}>{fmt(recorrenteGeral)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.text }}>{entriesGeral}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(maxGeral)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.text }}>{fmt(maxGeral)}</td>
                   <td style={{ padding: '12px 14px' }} />
                 </tr>
               </tbody>
@@ -400,7 +400,15 @@ function DetalhamentoMeses({ meses, detailByMonth, recurringByMonth }) {
     meses.forEach((m, i) => { init[m.id] = i === 0; });
     return init;
   });
+  // Ordem de exibição dos cards de mês: 'asc' mostra do mais antigo para o mais
+  // recente (passado → presente); 'desc' inverte, do mais recente para o mais
+  // antigo (presente → passado). Não altera a ordem usada nas demais seções.
+  const [order, setOrder] = React.useState('asc');
   const allOpen = meses.length > 0 && meses.every((m) => open[m.id]);
+  const mesesOrdenados = React.useMemo(() => {
+    const sorted = [...meses].sort((a, b) => a.id.localeCompare(b.id));
+    return order === 'asc' ? sorted : sorted.reverse();
+  }, [meses, order]);
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -408,6 +416,20 @@ function DetalhamentoMeses({ meses, detailByMonth, recurringByMonth }) {
         <span style={{ fontSize: 17, fontWeight: 700, color: TOKENS.title, letterSpacing: -0.2 }}>Detalhamento dos créditos por mês</span>
         <span style={{ fontSize: 12, color: TOKENS.textMuted }}>(clique em um mês para expandir)</span>
         <div style={{ flex: 1 }} />
+        <button
+          className="lz-btn-ghost"
+          onClick={() => setOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+          title="Alternar ordem cronológica do histórico de meses"
+          style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+        >
+          <Icon
+            d={I.history}
+            size={13}
+            stroke={TOKENS.textMuted}
+            strokeWidth={1.8}
+          />
+          {order === 'asc' ? 'Mais recente primeiro' : 'Mais antigo primeiro'}
+        </button>
         <button className="lz-btn-ghost" onClick={() => {
           const next = {}; meses.forEach((m) => { next[m.id] = !allOpen; });
           setOpen(next);
@@ -417,7 +439,7 @@ function DetalhamentoMeses({ meses, detailByMonth, recurringByMonth }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {meses.map((m) => (
+        {mesesOrdenados.map((m) => (
           <MesDetail
             key={m.id}
             mes={m}
