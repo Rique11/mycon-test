@@ -356,16 +356,17 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, dataStatus }
 
   sectionHeader(ws, r, 6, 'INDICADORES (JANELA DE 12 MESES)');
   r += 1;
-  kpiCard(ws, r, 1, {
-    label: 'Renda verificada — média (3m)',
-    value: num(insights?.avgMonthlyIncome3m),
-    fmt: FMT.cur0,
-    subtext: 'Mediana mensal de créditos recorrentes, janela de 3 meses.',
-  });
   const incomeMonths = income?.months || [];
   const mesesRecebidos = income?.summary?.monthsAnalyzed || incomeMonths.length;
+  const totalEntradas12m = sum(incomeMonths.map((m) => num(m.totalCredits) ?? 0));
+  kpiCard(ws, r, 1, {
+    label: 'Total de entradas (12m)',
+    value: totalEntradas12m,
+    fmt: FMT.cur0,
+    subtext: 'Soma de todas as entradas dos 12 meses analisados, incluindo transferências entre contas.',
+  });
   const receitaMedia = mesesRecebidos
-    ? sum(incomeMonths.map((m) => num(m.totalCredits) ?? 0)) / mesesRecebidos
+    ? totalEntradas12m / mesesRecebidos
     : null;
   kpiCard(ws, r, 3, {
     label: 'Receita média (12m)',
