@@ -1,6 +1,8 @@
 // Tela de composição da renda verificada: resumo, tabela mensal, detalhamento de
-// créditos por mês, critérios e leitura operacional. Consome o endpoint
-// /clients/{id}/income-composition; apresentação na identidade Lizard.
+// créditos por mês (incluindo o grupo "C. Renda Recorrente", com o status de
+// cada lançamento recorrente: há quantos meses se repete ou período em que
+// esteve ativo antes de encerrar), critérios e leitura operacional. Consome o
+// endpoint /clients/{id}/income-composition; apresentação na identidade Lizard.
 
 import React from 'react';
 import { TOKENS, I } from './tokens.js';
@@ -18,7 +20,7 @@ import { clientsApi } from './services/api';
 import { exportConsolidado } from './services/exportExcel.js';
 import { exportExtratoPdf } from './services/exportPdf.js';
 import { fmtBRL as fmt } from './lib/format';
-import { confTone, mapMonth, groupDetail, computeRecurringIncome, receitaTrimestral } from './services/domain';
+import { confTone, mapMonth, groupDetail, computeRecurringIncome, receitaTrimestral, recurringDetailByMonth } from './services/domain';
 
 // ─── Tela: Composição da renda verificada ───────────────────────────────────
 
@@ -114,7 +116,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
               <CompMensal meses={meses} />
             </SectionBand>
             <SectionBand n={3}>
-              <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} />
+              <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} detail={data?.detail || []} />
             </SectionBand>
             <SectionBand n={4}>
               <CriterioCard />
@@ -356,13 +358,27 @@ const METHOD_TONE = {
   Outros: 'neutral',
 };
 
-function DetalhamentoMeses({ meses, detailByMonth }) {
+// Colunas padrão dos grupos A/B (lançamentos do próprio mês) e colunas do grupo
+// C, que acrescenta o status da recorrência (ativa há N meses, ou período em
+// que esteve ativa e já encerrou) a cada lançamento identificado como renda
+// recorrente.
+const DEFAULT_COLUMNS = [
+  { key: 'd', label: 'Data' },
+  { key: 'desc', label: 'Descrição' },
+  { key: 'inst', label: 'Origem' },
+  { key: 'val', label: 'Valor', align: 'right' },
+  { key: 'met', label: 'Método de recebimento' },
+];
+const RECURRING_COLUMNS = [...DEFAULT_COLUMNS, { key: 'statusLabel', label: 'Status' }];
+
+function DetalhamentoMeses({ meses, detailByMonth, detail }) {
   const [open, setOpen] = React.useState(() => {
     const init = {};
     meses.forEach((m, i) => { init[m.id] = i === 0; });
     return init;
   });
   const allOpen = meses.length > 0 && meses.every((m) => open[m.id]);
+  const recurringByMonth = React.useMemo(() => recurringDetailByMonth(detail, meses), [detail, meses]);
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -384,6 +400,7 @@ function DetalhamentoMeses({ meses, detailByMonth }) {
             key={m.id}
             mes={m}
             lines={detailByMonth[m.id]}
+            recurringLines={recurringByMonth[m.id]}
             open={open[m.id]}
             onToggle={() => setOpen((current) => ({ ...current, [m.id]: !current[m.id] }))}
           />
@@ -393,7 +410,7 @@ function DetalhamentoMeses({ meses, detailByMonth }) {
   );
 }
 
-const MesDetail = React.memo(function MesDetail({ mes, lines, open, onToggle }) {
+const MesDetail = React.memo(function MesDetail({ mes, lines, recurringLines, open, onToggle }) {
   const groups = React.useMemo(() => groupDetail(lines), [lines]);
   return (
     <div className="lz-card" id={mes.id} style={{ overflow: 'hidden' }}>
@@ -424,13 +441,24 @@ const MesDetail = React.memo(function MesDetail({ mes, lines, open, onToggle }) 
           {Object.entries(groups).map(([key, g]) => (
             <DetailGroup key={key} title={g.title} items={g.items} />
           ))}
+          <DetailGroup title="C. Renda Recorrente" items={recurringLines || []} columns={RECURRING_COLUMNS} />
         </div>
       )}
     </div>
   );
 });
 
-function DetailGroup({ title, items }) {
+function recurringGroupCellStyle(col) {
+  const style = { padding: '10px 14px' };
+  if (col.align === 'right') style.textAlign = 'right';
+  if (col.key === 'd') style.color = TOKENS.text;
+  if (col.key === 'desc') { style.color = TOKENS.text; style.fontWeight = 500; }
+  if (col.key === 'inst') style.color = TOKENS.textMuted;
+  if (col.key === 'val') { style.color = TOKENS.text; style.fontWeight = 600; }
+  return style;
+}
+
+function DetailGroup({ title, items, columns = DEFAULT_COLUMNS }) {
   return (
     <div style={{ marginTop: 14 }}>
       <div style={{ fontSize: 12.5, fontWeight: 600, color: TOKENS.text, marginBottom: 8, letterSpacing: -0.1 }}>
@@ -448,23 +476,42 @@ function DetailGroup({ title, items }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: TOKENS.panel, borderBottom: `1px solid ${TOKENS.border}` }}>
-                {['Data', 'Descrição', 'Origem', 'Valor', 'Método de recebimento'].map((h, i) => (
-                  <th key={i} style={{
-                    padding: '9px 14px', textAlign: i === 3 ? 'right' : 'left',
+                {columns.map((c) => (
+                  <th key={c.key} style={{
+                    padding: '9px 14px', textAlign: c.align === 'right' ? 'right' : 'left',
                     fontWeight: 600, color: TOKENS.textMuted, fontSize: 10.5,
                     textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap',
-                  }}>{h}</th>
+                  }}>{c.label}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {items.map((it, i) => (
                 <tr key={i} className="lz-row-hover" style={{ borderBottom: i < items.length - 1 ? `1px solid ${TOKENS.border}` : 'none' }}>
-                  <td className="num" style={{ padding: '10px 14px', color: TOKENS.text }}>{it.d}</td>
-                  <td style={{ padding: '10px 14px', color: TOKENS.text, fontWeight: 500 }}>{it.desc}</td>
-                  <td style={{ padding: '10px 14px', color: TOKENS.textMuted }}>{it.inst}</td>
-                  <td className="num" style={{ padding: '10px 14px', textAlign: 'right', color: TOKENS.text, fontWeight: 600 }}>{fmt(it.val)}</td>
-                  <td style={{ padding: '10px 14px' }}><Badge tone={METHOD_TONE[it.met] || 'neutral'} size="sm" dot>{it.met}</Badge></td>
+                  {columns.map((c) => {
+                    if (c.key === 'met') {
+                      return (
+                        <td key={c.key} style={recurringGroupCellStyle(c)}>
+                          <Badge tone={METHOD_TONE[it.met] || 'neutral'} size="sm" dot>{it.met}</Badge>
+                        </td>
+                      );
+                    }
+                    if (c.key === 'statusLabel') {
+                      return (
+                        <td key={c.key} style={recurringGroupCellStyle(c)}>
+                          <Badge tone={it.statusOngoing ? 'blue' : 'neutral'} size="sm" dot>{it.statusLabel}</Badge>
+                        </td>
+                      );
+                    }
+                    if (c.key === 'val') {
+                      return (
+                        <td key={c.key} className="num" style={recurringGroupCellStyle(c)}>{fmt(it.val)}</td>
+                      );
+                    }
+                    return (
+                      <td key={c.key} className={c.key === 'd' ? 'num' : undefined} style={recurringGroupCellStyle(c)}>{it[c.key]}</td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

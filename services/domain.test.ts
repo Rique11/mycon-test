@@ -15,6 +15,7 @@ import {
   mapMonth,
   receiptMethod,
   receitaTrimestral,
+  recurringDetailByMonth,
   sourceKey,
 } from './domain';
 
@@ -222,6 +223,58 @@ describe('receitaTrimestral', () => {
       mapMonth({ yearMonth: '2025-04', totalCredits: 400, betweenAccounts: 0 }),
     ];
     expect(receitaTrimestral(meses)).toBe(750);
+  });
+});
+
+describe('recurringDetailByMonth', () => {
+  it('renda recorrente ate o ultimo mes analisado fica com status N meses (ongoing)', () => {
+    const lines = [
+      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE A', date: '01/01' },
+      { yearMonth: '2025-02', amount: 100, classification: 'NREC', description: 'PIX FONTE B', date: '01/02' },
+      { yearMonth: '2025-03', amount: 100, classification: 'NREC', description: 'PIX FONTE C', date: '01/03' },
+      { yearMonth: '2025-04', amount: 100, classification: 'NREC', description: 'PIX FONTE D', date: '01/04' },
+    ];
+    const mesesAnalisados = ['2025-01', '2025-02', '2025-03', '2025-04'].map((id) => ({ id }));
+    const byMonth = recurringDetailByMonth(lines, mesesAnalisados);
+    expect(byMonth['2025-04']).toHaveLength(1);
+    expect(byMonth['2025-04'][0].statusOngoing).toBe(true);
+    expect(byMonth['2025-04'][0].statusLabel).toBe('4 meses');
+    expect(byMonth['2025-01'][0].statusLabel).toBe('4 meses');
+  });
+
+  it('renda recorrente que termina antes do ultimo mes fica com status de periodo (nao ongoing)', () => {
+    const meses = ['2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06'].map((id) => ({ id }));
+    const lines = [
+      { yearMonth: '2025-01', amount: 90, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
+      { yearMonth: '2025-02', amount: 110, classification: 'NREC', description: 'EMPRESA XYZ CRED PIX' },
+      { yearMonth: '2025-03', amount: 130, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
+    ];
+    const byMonth = recurringDetailByMonth(lines, meses);
+    expect(byMonth['2025-03'][0].statusOngoing).toBe(false);
+    expect(byMonth['2025-03'][0].statusLabel).toBe('Jan/25 - Mar/25');
+    expect(byMonth['2025-04']).toBeUndefined();
+  });
+
+  it('ignora lancamentos que nao atendem aos criterios de recorrencia ou sao ENT/ATIP', () => {
+    const meses = ['2025-01', '2025-02', '2025-03'].map((id) => ({ id }));
+    const lines = [
+      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE A' },
+      { yearMonth: '2025-03', amount: 100, classification: 'NREC', description: 'PIX FONTE B' },
+      { yearMonth: '2025-01', amount: 500, classification: 'ENT', description: 'TED MESMA TITULARIDADE' },
+    ];
+    const byMonth = recurringDetailByMonth(lines, meses);
+    expect(byMonth['2025-01']).toBeUndefined();
+    expect(byMonth['2025-03']).toBeUndefined();
+  });
+
+  it('aceita lista de lancamentos vazia ou nula', () => {
+    const meses = [{ id: '2025-01' }];
+    expect(recurringDetailByMonth([], meses)).toEqual({});
+    expect(recurringDetailByMonth(null, meses)).toEqual({});
+  });
+
+  it('retorna vazio quando nao ha meses analisados', () => {
+    expect(recurringDetailByMonth([{ yearMonth: '2025-01', amount: 100, description: 'PIX' }], [])).toEqual({});
   });
 });
 

@@ -4,10 +4,13 @@
  * de lançamentos da composição de renda: agrupamento em receita vs. transferências
  * entre contas do titular, com método de recebimento (PIX, TED, ...) por lançamento,
  * detecção de renda recorrente (valor repetido em meses consecutivos ou mesma fonte
- * pagadora em meses consecutivos) e receita trimestral (últimos 3 meses).
+ * pagadora em meses consecutivos), receita trimestral (últimos 3 meses) e o
+ * detalhamento por mês da renda recorrente (grupo "C. Renda Recorrente"), com um
+ * status por lançamento indicando há quantos meses a renda é recorrente ou, quando
+ * a recorrência já terminou, o período em que ela esteve ativa.
  */
 
-import { num, ymLabels } from '../lib/format';
+import { num, ymLabels, mesLabel } from '../lib/format';
 
 export const RECENT_LINK_DAYS = 5;
 
@@ -365,19 +368,54 @@ function ymIndex(ym: unknown): number | null {
   return y * 12 + (m - 1);
 }
 
-function consecutiveRunMonths(months: Iterable<number>, minLen: number): Set<number> {
+interface MonthRun {
+  start: number;
+  end: number;
+  len: number;
+}
+
+/**
+ * Agrupa uma lista de índices de mês (ver `ymIndex`) em sequências consecutivas,
+ * retornando apenas as sequências com pelo menos `minLen` meses. Base tanto para
+ * `consecutiveRunMonths` (usado por `computeRecurringIncome`) quanto para
+ * `recurringDetailByMonth`, que precisa saber o início/fim de cada sequência.
+ */
+function consecutiveRuns(months: Iterable<number>, minLen: number): MonthRun[] {
   const sorted = [...new Set(months)].sort((a, b) => a - b);
-  const qualifying = new Set<number>();
+  const runs: MonthRun[] = [];
   let start = 0;
   for (let i = 1; i <= sorted.length; i += 1) {
     if (i === sorted.length || sorted[i] !== sorted[i - 1] + 1) {
-      if (i - start >= minLen) {
-        for (let j = start; j < i; j += 1) qualifying.add(sorted[j]);
-      }
+      const len = i - start;
+      if (len >= minLen) runs.push({ start: sorted[start], end: sorted[i - 1], len });
       start = i;
     }
   }
+  return runs;
+}
+
+function consecutiveRunMonths(months: Iterable<number>, minLen: number): Set<number> {
+  const qualifying = new Set<number>();
+  consecutiveRuns(months, minLen).forEach((run) => {
+    for (let m = run.start; m <= run.end; m += 1) qualifying.add(m);
+  });
   return qualifying;
+}
+
+function findRun(months: number[], minLen: number, month: number): MonthRun | null {
+  return consecutiveRuns(months, minLen).find((run) => month >= run.start && month <= run.end) ?? null;
+}
+
+function pickPrimaryRun(byAmount: MonthRun | null, bySource: MonthRun | null): MonthRun | null {
+  if (!byAmount) return bySource;
+  if (!bySource) return byAmount;
+  return bySource.len > byAmount.len ? bySource : byAmount;
+}
+
+function monthIndexToYm(index: number): string {
+  const year = Math.floor(index / 12);
+  const month = (index % 12) + 1;
+  return `${year}-${String(month).padStart(2, '0')}`;
 }
 
 export interface RecurringIncomeResult {
@@ -434,6 +472,89 @@ export function computeRecurringIncome(
     }
     return acc;
   }, { total: 0, entryCount: 0 });
+}
+
+export interface RecurringDetailLine {
+  d: unknown;
+  desc: string;
+  inst: string;
+  val: number;
+  met: string;
+  statusLabel: string;
+  statusOngoing: boolean;
+}
+
+/**
+ * Agrupa por mês (chave `yearMonth`) os lançamentos considerados renda
+ * recorrente pelos mesmos critérios de `computeRecurringIncome`, para exibição
+ * no grupo "C. Renda Recorrente" do detalhamento mensal. Cada lançamento recebe
+ * um `statusLabel`: quando a sequência de meses consecutivos (por valor ou por
+ * fonte pagadora) ainda alcança o último mês analisado, o status indica há
+ * quantos meses a renda vem se repetindo (`statusOngoing: true`, ex.: "4 meses");
+ * quando a sequência terminou antes do último mês analisado, o status indica o
+ * período em que a renda foi recorrente (`statusOngoing: false`, ex.: "Jan/25 -
+ * Jul/25"), sinalizando nos meses daquele período que a renda deixou de se
+ * repetir. Quando um lançamento atende aos dois critérios (valor e fonte), a
+ * sequência mais longa é usada como referência do status.
+ */
+export function recurringDetailByMonth(
+  lines: Array<Record<string, unknown>> | null | undefined,
+  meses: Array<{ id: string }>,
+): Record<string, RecurringDetailLine[]> {
+  const result: Record<string, RecurringDetailLine[]> = {};
+
+  const latestMonth = meses.reduce<number | null>((max, m) => {
+    const idx = ymIndex(m.id);
+    if (idx == null) return max;
+    return max == null ? idx : Math.max(max, idx);
+  }, null);
+  if (latestMonth == null) return result;
+
+  const candidates = (lines || [])
+    .map((l) => ({
+      raw: l,
+      month: ymIndex(l.yearMonth),
+      amountCents: Math.round(num(l.amount) * 100),
+      source: sourceKey(l.description),
+      amount: num(l.amount),
+      classification: String(l.classification || ''),
+    }))
+    .filter((l) => l.month != null && l.amountCents > 0 && l.classification !== 'ENT' && l.classification !== 'ATIP');
+
+  const monthsByAmount = new Map<number, number[]>();
+  const monthsBySource = new Map<string, number[]>();
+  candidates.forEach((l) => {
+    monthsByAmount.set(l.amountCents, [...(monthsByAmount.get(l.amountCents) || []), l.month as number]);
+    if (l.source) {
+      monthsBySource.set(l.source, [...(monthsBySource.get(l.source) || []), l.month as number]);
+    }
+  });
+
+  candidates.forEach((l) => {
+    const month = l.month as number;
+    const byAmount = findRun(monthsByAmount.get(l.amountCents) || [], RECURRING_AMOUNT_MIN_MONTHS, month);
+    const bySource = l.source ? findRun(monthsBySource.get(l.source) || [], RECURRING_SOURCE_MIN_MONTHS, month) : null;
+    const run = pickPrimaryRun(byAmount, bySource);
+    if (!run) return;
+
+    const ongoing = run.end === latestMonth;
+    const statusLabel = ongoing
+      ? `${run.len} ${run.len === 1 ? 'mês' : 'meses'}`
+      : `${mesLabel(monthIndexToYm(run.start))} - ${mesLabel(monthIndexToYm(run.end))}`;
+
+    const ym = monthIndexToYm(month);
+    (result[ym] = result[ym] || []).push({
+      d: l.raw.date,
+      desc: String(l.raw.description || '—'),
+      inst: String(l.raw.personType || '—'),
+      val: l.amount,
+      met: receiptMethod(l.raw.description),
+      statusLabel,
+      statusOngoing: ongoing,
+    });
+  });
+
+  return result;
 }
 
 /**
