@@ -411,7 +411,13 @@ function DetalhamentoMeses({ meses, detailByMonth, detail }) {
 }
 
 const MesDetail = React.memo(function MesDetail({ mes, lines, recurringLines, open, onToggle }) {
-  const groups = React.useMemo(() => groupDetail(lines), [lines]);
+  // Lançamentos já exibidos no grupo "C. Renda Recorrente" são retirados da
+  // listagem genérica do grupo "A. Receita" para não aparecer duplicados nos
+  // dois grupos ao mesmo tempo.
+  const recurringRawSet = React.useMemo(() => new Set((recurringLines || []).map((r) => r.raw)), [recurringLines]);
+  const groups = React.useMemo(() => (
+    groupDetail((lines || []).filter((l) => !recurringRawSet.has(l)))
+  ), [lines, recurringRawSet]);
   return (
     <div className="lz-card" id={mes.id} style={{ overflow: 'hidden' }}>
       <button onClick={onToggle} style={{

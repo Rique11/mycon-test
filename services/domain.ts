@@ -475,6 +475,7 @@ export function computeRecurringIncome(
 }
 
 export interface RecurringDetailLine {
+  raw: Record<string, unknown>;
   d: unknown;
   desc: string;
   inst: string;
@@ -495,7 +496,10 @@ export interface RecurringDetailLine {
  * período em que a renda foi recorrente (`statusOngoing: false`, ex.: "Jan/25 -
  * Jul/25"), sinalizando nos meses daquele período que a renda deixou de se
  * repetir. Quando um lançamento atende aos dois critérios (valor e fonte), a
- * sequência mais longa é usada como referência do status.
+ * sequência mais longa é usada como referência do status. Cada item devolve
+ * também o lançamento bruto (`raw`) para permitir excluir da listagem
+ * genérica de receita (grupo "A") os lançamentos já exibidos no grupo "C",
+ * evitando duplicidade entre os dois grupos.
  */
 export function recurringDetailByMonth(
   lines: Array<Record<string, unknown>> | null | undefined,
@@ -544,6 +548,7 @@ export function recurringDetailByMonth(
 
     const ym = monthIndexToYm(month);
     (result[ym] = result[ym] || []).push({
+      raw: l.raw,
       d: l.raw.date,
       desc: String(l.raw.description || '—'),
       inst: String(l.raw.personType || '—'),
