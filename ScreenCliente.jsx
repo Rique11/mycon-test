@@ -454,11 +454,11 @@ function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
               </div>
             </div>
             {onVerComposicao && (
-              <button onClick={onVerComposicao} className="lz-btn-ghost" style={{
+              <button onClick={onVerComposicao} className="lz-btn-primary" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '7px 12px', fontSize: 12, fontWeight: 500, color: TOKENS.primary,
+                padding: '7px 12px', fontSize: 12, fontWeight: 500,
               }}>
-                <Icon d={I.link} size={13} stroke={TOKENS.primary} strokeWidth={1.8} />
+                <Icon d={I.link} size={13} stroke="#FFFFFF" strokeWidth={1.8} />
                 Ver composição detalhada
               </button>
             )}
