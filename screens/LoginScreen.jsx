@@ -129,7 +129,7 @@ export default function LoginScreen() {
             <button
               type="submit"
               className="login-form__submit"
-              disabled={loading || !email || !password}
+              disabled={loading}
             >
               {loading ? 'Entrando...' : 'ENTRAR'}
             </button>

@@ -325,6 +325,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
   const [exporting, setExporting] = React.useState('');
   const messageTimerRef = React.useRef(null);
   const copyTimerRef = React.useRef(null);
+  const backdropMouseDownRef = React.useRef(false);
   const evidenceState = useCaseEvidence(caseItem, onUpdateCase);
 
   const evidence = evidenceState.loading ? null : evidenceState;
@@ -521,14 +522,21 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
   }
 
   return (
-    <div className="lz-anim-fade" style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 40,
-      background: 'rgba(16,26,51,.18)',
-      display: 'flex',
-      justifyContent: 'flex-end',
-    }}>
+    <div
+      className="lz-anim-fade"
+      onMouseDown={(e) => { backdropMouseDownRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) onClose();
+      }}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 40,
+        background: 'rgba(16,26,51,.18)',
+        display: 'flex',
+        justifyContent: 'flex-end',
+      }}
+    >
       <aside className="lz-anim-panel" style={{
         width: 'min(640px, 100vw)',
         height: '100%',
