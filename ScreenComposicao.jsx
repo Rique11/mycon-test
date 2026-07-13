@@ -301,11 +301,11 @@ function CompMensal({ meses }) {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ background: TOKENS.panel, borderBottom: `1px solid ${TOKENS.border}` }}>
+              <tr style={{ background: TOKENS.brandLight, borderBottom: `1px solid ${TOKENS.brandLight}` }}>
                 {cols.map((c) => (
                   <th key={c.id} style={{
-                    padding: '11px 14px', textAlign: c.align, fontWeight: 600,
-                    color: TOKENS.textMuted, fontSize: 11, textTransform: 'uppercase',
+                    padding: '11px 14px', textAlign: c.align, fontWeight: 700,
+                    color: '#FFFFFF', fontSize: 11, textTransform: 'uppercase',
                     letterSpacing: 0.4, whiteSpace: 'nowrap',
                   }}>{c.label}</th>
                 ))}
