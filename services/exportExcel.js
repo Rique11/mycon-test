@@ -359,6 +359,7 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, dataStatus }
   const incomeMonths = income?.months || [];
   const mesesRecebidos = income?.summary?.monthsAnalyzed || incomeMonths.length;
   const totalEntradas12m = sum(incomeMonths.map((m) => num(m.totalCredits) ?? 0));
+  const totalReceita12m = sum(incomeMonths.map((m) => Math.max(0, (num(m.totalCredits) ?? 0) - (num(m.betweenAccounts) ?? 0))));
   kpiCard(ws, r, 1, {
     label: 'Total de entradas (12m)',
     value: totalEntradas12m,
@@ -366,13 +367,13 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, dataStatus }
     subtext: 'Soma de todas as entradas dos 12 meses analisados, incluindo transferências entre contas.',
   });
   const receitaMedia = mesesRecebidos
-    ? totalEntradas12m / mesesRecebidos
+    ? totalReceita12m / mesesRecebidos
     : null;
   kpiCard(ws, r, 3, {
     label: 'Receita média (12m)',
     value: num(receitaMedia),
     fmt: FMT.cur0,
-    subtext: 'Total de entradas (inclui transferências entre contas) dividido pelos meses recebidos.',
+    subtext: 'Receita (exceto transferências entre contas) dividida pelos meses recebidos.',
   });
   kpiCard(ws, r, 5, {
     label: 'Despesa média mensal (3m)',

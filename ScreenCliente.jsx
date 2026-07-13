@@ -62,13 +62,15 @@ export default function ScreenCliente({
     );
   }
 
-  const mesesIncome = (incomeData?.months || []).map((mo) => mapMonth(mo));
+  const mesesIncome = (incomeData?.months || [])
+    .map((mo) => mapMonth(mo))
+    .sort((a, b) => a.id.localeCompare(b.id));
   const mesesAnalisados = incomeData?.summary?.monthsAnalyzed || mesesIncome.length;
-  const somaEntradas = mesesIncome.reduce((a, m) => a + m.total, 0);
-  const receita12m = mesesAnalisados > 0 ? somaEntradas / mesesAnalisados : null;
+  const somaReceita = mesesIncome.reduce((a, m) => a + m.receita, 0);
+  const receita12m = mesesAnalisados > 0 ? somaReceita / mesesAnalisados : null;
   const ultimos3 = mesesIncome.slice(-3);
   const receita3m = ultimos3.length > 0
-    ? ultimos3.reduce((a, m) => a + m.total, 0) / ultimos3.length
+    ? ultimos3.reduce((a, m) => a + m.receita, 0) / ultimos3.length
     : null;
 
   const rendaBase3m = parseFloat(insights.avgMonthlyIncome3m ?? 0);
@@ -81,7 +83,7 @@ export default function ScreenCliente({
     : null;
   const poupancaReceita = despesa3m != null && receita3m != null ? receita3m - despesa3m : null;
 
-  const totaisMensais = mesesIncome.map((m) => m.total);
+  const totaisMensais = mesesIncome.map((m) => m.receita);
   const volatilidade = (() => {
     if (totaisMensais.length < 2) return null;
     const media = totaisMensais.reduce((a, v) => a + v, 0) / totaisMensais.length;
@@ -122,7 +124,7 @@ export default function ScreenCliente({
     email: client.email || '—',
   };
 
-  const mesesReceita = mesesIncome.slice(-12).map((m) => ({ m: m.label.toLowerCase(), v: m.total }));
+  const mesesReceita = mesesIncome.slice(-12).map((m) => ({ m: m.label.toLowerCase(), v: m.receita }));
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
@@ -321,7 +323,7 @@ function ResumoVisual({ cliente, receita }) {
     {
       label: 'Receita', value: receita.media3m != null ? fmtBRL(receita.media3m) : '—',
       sub: 'Média mensal (3m)', tone: 'blue', icon: I.wallet, mono: true,
-      info: 'Média mensal das entradas totais (todos os créditos identificados via Open Finance, incluindo transferências entre contas) nos últimos 3 meses.',
+      info: 'Média mensal da receita (créditos identificados via Open Finance, exceto transferências entre contas do titular) nos últimos 3 meses.',
     },
     {
       label: 'Fonte de renda', value: cliente.fontes > 0 ? 'Detectada' : 'Não detectada',
@@ -331,12 +333,12 @@ function ResumoVisual({ cliente, receita }) {
     {
       label: 'Débito/Receita', value: receita.debito != null ? `${receita.debito.toFixed(1)}×` : '—',
       sub: 'Saldo devedor ÷ receita', tone: 'warning', icon: I.alert, mono: true,
-      info: 'Saldo devedor total dos empréstimos (Open Finance) dividido pela receita mensal (entradas totais). Ex.: 2× = dívida equivale a 2 meses de receita.',
+      info: 'Saldo devedor total dos empréstimos (Open Finance) dividido pela receita mensal (exceto transferências entre contas). Ex.: 2× = dívida equivale a 2 meses de receita.',
     },
     {
       label: 'Capacidade de poupança', value: receita.poupanca != null ? fmtBRL(receita.poupanca) : '—',
       sub: 'Receita − despesa (3m)', tone: 'success', icon: I.chart, mono: true,
-      info: 'Receita (entradas totais) menos a despesa média mensal dos últimos 3 meses. Valor negativo indica déficit (gasta mais do que recebe).',
+      info: 'Receita (exceto transferências entre contas) menos a despesa média mensal dos últimos 3 meses. Valor negativo indica déficit (gasta mais do que recebe).',
     },
   ];
 
@@ -420,16 +422,16 @@ function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
         <Badge tone="blue" size="sm" dot>agregado · Open Finance</Badge>
       </div>
       <p style={{ margin: '0 0 12px 32px', fontSize: 12.5, color: TOKENS.textMuted }}>
-        Créditos identificados via Open Finance nos últimos 12 meses.
+        Créditos identificados via Open Finance nos últimos 12 meses, exceto transferências entre contas do titular.
       </p>
       <Card>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
           <EvidKpi label="Salário recorrente" value={cliente.fontes > 0 ? 'Sim' : 'Não'} sub={cliente.fontes > 0 ? 'Depósitos em dia útil' : 'Não detectado'} tone={cliente.fontes > 0 ? 'success' : 'warning'}
             info="Há crédito de pagador recorrente (presente em ≥4 meses) identificado nos lançamentos do Open Finance." />
           <EvidKpi label="Receita trimestral" value={receita.media3m != null ? fmtBRL(receita.media3m) : '—'} sub="Média mensal (3m)" mono
-            info="Média mensal das entradas totais nos últimos 3 meses." />
+            info="Média mensal da receita (exceto transferências entre contas) nos últimos 3 meses." />
           <EvidKpi label="Receita anual" value={receita.media12m != null ? fmtBRL(receita.media12m) : '—'} sub="Média mensal (12m)" tone="blue" mono
-            info="Média mensal das entradas totais no período analisado (até 12 meses)." />
+            info="Média mensal da receita (exceto transferências entre contas) no período analisado (até 12 meses)." />
           <EvidKpi label="Volatilidade"
             value={receita.volatilidade != null ? `${(receita.volatilidade * 100).toFixed(0)}%` : '—'}
             sub={receita.volatilidade == null ? 'Sem dado no período'
@@ -437,7 +439,7 @@ function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
               : receita.volatilidade <= 0.5 ? 'Oscilação moderada'
               : 'Oscilação alta'}
             mono
-            info="Quanto a receita mensal (entradas totais) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
+            info="Quanto a receita mensal (exceto transferências entre contas) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
         </div>
 
         {/* Chart */}
@@ -448,7 +450,7 @@ function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
                 Evolução da receita
               </div>
               <div style={{ fontSize: 11.5, color: TOKENS.textMuted }}>
-                Entradas totais por mês · últimos 12 meses
+                Receita por mês (exceto transferências entre contas) · últimos 12 meses
               </div>
             </div>
             {onVerComposicao && (
@@ -571,7 +573,7 @@ function ExplicacaoOperador({ cliente, receita }) {
             </div>
             <p style={{ margin: 0, fontSize: 13, color: TOKENS.text, lineHeight: 1.7, textWrap: 'pretty' }}>
               {cliente.fontes > 0
-                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A receita é de <strong>{receita.media3m != null ? fmtBRL(receita.media3m) : '—'}</strong>/mês (média das entradas totais dos últimos 3 meses), com média anual de <strong>{receita.media12m != null ? fmtBRL(receita.media12m) : '—'}</strong>/mês.</>
+                ? <>Identificamos <strong>renda recorrente</strong> via Open Finance. A receita é de <strong>{receita.media3m != null ? fmtBRL(receita.media3m) : '—'}</strong>/mês (média da receita dos últimos 3 meses, exceto transferências entre contas), com média anual de <strong>{receita.media12m != null ? fmtBRL(receita.media12m) : '—'}</strong>/mês.</>
                 : <>Não identificamos <strong>renda recorrente</strong> que comprove renda nos créditos do Open Finance (nenhum pagador com repetição mensal estável no período). A composição detalhada lista os créditos classificados.</>}
             </p>
           </div>

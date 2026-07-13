@@ -257,6 +257,7 @@ export interface MonthComposition {
   nrec: number;
   atip: number;
   total: number;
+  receita: number;
   val: number;
   conf: string;
   entryCount: number;
@@ -270,10 +271,15 @@ export interface MonthComposition {
  * detalhamento de lançamentos (`lines`) desse mês para derivar a
  * quantidade de entradas, o total recebido via PIX (recorrente e não
  * recorrente), o valor médio por entrada e a maior entrada recebida.
+ * `receita` é a renda considerada do mês: total de entradas menos as
+ * transferências entre contas do próprio titular (`betweenAccounts`), que
+ * ficam separadas para avaliação do analista e não compõem a renda, evitando
+ * dupla contagem e a inclusão de movimentação de patrimônio.
  */
 export function mapMonth(mo: Record<string, unknown>, lines: Array<Record<string, unknown>> = []): MonthComposition {
   const { label, long } = ymLabels(mo.yearMonth);
   const total = num(mo.totalCredits);
+  const betweenAccounts = num(mo.betweenAccounts);
   const list = Array.isArray(lines) ? lines : [];
   const entryCount = list.length;
   const pixTotal = list.reduce((acc, l) => (
@@ -282,9 +288,9 @@ export function mapMonth(mo: Record<string, unknown>, lines: Array<Record<string
   const maxEntry = list.reduce((acc, l) => Math.max(acc, num(l.amount)), 0);
   return {
     id: String(mo.yearMonth), label, long,
-    rec: num(mo.recurring), pix: num(mo.pixRecurring), ent: num(mo.betweenAccounts),
+    rec: num(mo.recurring), pix: num(mo.pixRecurring), ent: betweenAccounts,
     nrec: num(mo.nonRecurring), atip: num(mo.atypical),
-    total, val: num(mo.validatedIncome),
+    total, receita: Math.max(0, total - betweenAccounts), val: num(mo.validatedIncome),
     conf: String(mo.confidence || 'Baixa'),
     entryCount, pixTotal,
     avgEntry: entryCount > 0 ? total / entryCount : 0,
@@ -299,18 +305,19 @@ export interface ReceitaStats {
 
 /**
  * Deriva receita média mensal (12m) e volatilidade (coeficiente de variação
- * das entradas totais mensais) a partir de um payload de composição de renda
- * (`{ months, summary }`), para uso em cards de evidência de renda.
+ * da receita mensal) a partir de um payload de composição de renda
+ * (`{ months, summary }`), para uso em cards de evidência de renda. A receita
+ * considerada exclui transferências entre contas do titular (`betweenAccounts`).
  */
 export function computeReceitaStats(
   income: { months?: Array<Record<string, unknown>>; summary?: { monthsAnalyzed?: number } } | null | undefined,
 ): ReceitaStats {
   const meses = (income?.months || []).map((mo) => mapMonth(mo));
   const mesesAnalisados = income?.summary?.monthsAnalyzed || meses.length;
-  const somaEntradas = meses.reduce((a, m) => a + m.total, 0);
-  const media12m = mesesAnalisados > 0 ? somaEntradas / mesesAnalisados : null;
+  const somaReceita = meses.reduce((a, m) => a + m.receita, 0);
+  const media12m = mesesAnalisados > 0 ? somaReceita / mesesAnalisados : null;
 
-  const totaisMensais = meses.map((m) => m.total);
+  const totaisMensais = meses.map((m) => m.receita);
   let volatilidade: number | null = null;
   if (totaisMensais.length >= 2) {
     const media = totaisMensais.reduce((a, v) => a + v, 0) / totaisMensais.length;
@@ -430,14 +437,15 @@ export function computeRecurringIncome(
 }
 
 /**
- * Soma o total de entradas dos últimos 3 meses analisados (ordenados por
- * ano-mês), para exibição da receita trimestral no resumo da composição.
+ * Soma a receita dos últimos 3 meses analisados (ordenados por ano-mês),
+ * já líquida de transferências entre contas do titular, para exibição da
+ * receita trimestral no resumo da composição.
  */
 export function receitaTrimestral(meses: MonthComposition[]): number {
   return [...meses]
     .sort((a, b) => a.id.localeCompare(b.id))
     .slice(-3)
-    .reduce((acc, m) => acc + m.total, 0);
+    .reduce((acc, m) => acc + m.receita, 0);
 }
 
 export interface DetailLine {

@@ -583,7 +583,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
               {consent.tone === 'success' && (
                 <>
                   <EvidKpi label="Receita anual" value={receita.media12m != null ? fmtBRL(receita.media12m) : '—'} sub="Média mensal (12m)" mono
-                    info="Média mensal das entradas totais no período analisado (até 12 meses)." />
+                    info="Média mensal da receita (exceto transferências entre contas) no período analisado (até 12 meses)." />
                   <EvidKpi label="Volatilidade"
                     value={receita.volatilidade != null ? `${(receita.volatilidade * 100).toFixed(0)}%` : '—'}
                     sub={receita.volatilidade == null ? 'Sem dado no período'
@@ -591,7 +591,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
                       : receita.volatilidade <= 0.5 ? 'Oscilação moderada'
                       : 'Oscilação alta'}
                     mono
-                    info="Quanto a receita mensal (entradas totais) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
+                    info="Quanto a receita mensal (exceto transferências entre contas) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
                 </>
               )}
             </div>

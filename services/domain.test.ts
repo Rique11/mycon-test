@@ -104,6 +104,18 @@ describe('classificação de lançamentos', () => {
     expect(Object.keys(groups)).toHaveLength(2);
     expect(groups.receita.items).toHaveLength(0);
   });
+
+  it('receita do mês exclui transferências entre contas e nunca fica negativa', () => {
+    const m = mapMonth({ yearMonth: '2025-05', totalCredits: 1500, betweenAccounts: 500 });
+    expect(m.total).toBe(1500);
+    expect(m.receita).toBe(1000);
+
+    const semEntre = mapMonth({ yearMonth: '2025-05', totalCredits: 1500 });
+    expect(semEntre.receita).toBe(1500);
+
+    const inconsistente = mapMonth({ yearMonth: '2025-05', totalCredits: 200, betweenAccounts: 500 });
+    expect(inconsistente.receita).toBe(0);
+  });
 });
 
 describe('receiptMethod', () => {
@@ -188,7 +200,7 @@ describe('computeRecurringIncome', () => {
 });
 
 describe('receitaTrimestral', () => {
-  it('soma o total de entradas dos últimos 3 meses', () => {
+  it('soma a receita dos últimos 3 meses', () => {
     const meses = [
       mapMonth({ yearMonth: '2025-01', totalCredits: 100 }),
       mapMonth({ yearMonth: '2025-02', totalCredits: 200 }),
@@ -201,6 +213,15 @@ describe('receitaTrimestral', () => {
   it('funciona com menos de 3 meses', () => {
     expect(receitaTrimestral([mapMonth({ yearMonth: '2025-04', totalCredits: 400 })])).toBe(400);
     expect(receitaTrimestral([])).toBe(0);
+  });
+
+  it('desconsidera transferências entre contas na soma trimestral', () => {
+    const meses = [
+      mapMonth({ yearMonth: '2025-02', totalCredits: 200, betweenAccounts: 50 }),
+      mapMonth({ yearMonth: '2025-03', totalCredits: 300, betweenAccounts: 100 }),
+      mapMonth({ yearMonth: '2025-04', totalCredits: 400, betweenAccounts: 0 }),
+    ];
+    expect(receitaTrimestral(meses)).toBe(750);
   });
 });
 

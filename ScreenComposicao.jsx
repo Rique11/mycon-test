@@ -205,12 +205,12 @@ function ResumoComposicao({ meses, summary, detail }) {
   const trimestre = React.useMemo(() => receitaTrimestral(meses), [meses]);
   // Ordem de exibição definida pelo produto: 1, 8, 7, 6, 4, 5, 2, 3
   const items = [
-    { l: 'Receita média', v: fmt(sum('total') / mesesRecebidos), s: `Média mensal (${summary.monthsAnalyzed}m)`, icon: I.wallet, tone: 'blue', mono: true,
-      info: 'Total de entradas do período (inclui transferências entre contas) dividido pelos meses recebidos via Open Finance.' },
-    { l: 'Receita total', v: fmt(sum('total')), s: 'Soma do período', icon: I.chart, tone: 'success', mono: true,
-      info: 'Soma de todas as entradas do período, incluindo transferências entre contas.' },
+    { l: 'Receita média', v: fmt(sum('receita') / mesesRecebidos), s: `Média mensal (${summary.monthsAnalyzed}m)`, icon: I.wallet, tone: 'blue', mono: true,
+      info: 'Receita do período (exceto transferências entre contas) dividida pelos meses recebidos via Open Finance.' },
+    { l: 'Receita total', v: fmt(sum('receita')), s: 'Soma do período', icon: I.chart, tone: 'success', mono: true,
+      info: 'Soma da receita do período, exceto transferências entre contas do titular.' },
     { l: 'Receita trimestral', v: fmt(trimestre), s: 'Últimos 3 meses', icon: I.history, tone: 'warning', mono: true,
-      info: 'Total de entradas recebidas nos últimos 3 meses analisados.' },
+      info: 'Receita recebida nos últimos 3 meses analisados, exceto transferências entre contas.' },
     { l: 'Renda recorrente', v: fmt(rendaRecorrente.total), s: 'No período', icon: I.send, tone: 'blue', mono: true,
       info: 'Entradas com o mesmo valor recebido em 2 ou mais meses consecutivos, ou recebidas de uma mesma fonte em 3 ou mais meses consecutivos. Basta atender a um dos critérios.' },
     { l: 'Entre contas', v: fmt(sum('ent')), s: 'No período', icon: I.link, tone: 'purple', mono: true,
