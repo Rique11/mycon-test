@@ -481,11 +481,11 @@ function DetailGroup({ title, items, columns = DEFAULT_COLUMNS }) {
         <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ background: TOKENS.panel, borderBottom: `1px solid ${TOKENS.border}` }}>
+              <tr style={{ background: TOKENS.primarySoft, borderBottom: `1px solid ${TOKENS.primarySoftBorder}` }}>
                 {columns.map((c) => (
                   <th key={c.key} style={{
                     padding: '9px 14px', textAlign: c.align === 'right' ? 'right' : 'left',
-                    fontWeight: 600, color: TOKENS.textMuted, fontSize: 10.5,
+                    fontWeight: 600, color: TOKENS.primaryFg, fontSize: 10.5,
                     textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap',
                   }}>{c.label}</th>
                 ))}
