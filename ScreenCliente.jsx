@@ -173,7 +173,7 @@ export default function ScreenCliente({
           </div>
         )}
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px 48px' }}>
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 20, paddingTop: 24 }}>
+          <div style={{ maxWidth: 1400, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20, paddingTop: 24 }}>
             <ContextoCliente cliente={clienteFormatado} />
             <ResumoVisual cliente={clienteFormatado} receita={receita} />
             <Evidencias cliente={clienteFormatado} receita={receita} mesesReceita={mesesReceita} onVerComposicao={onVerComposicao} />
