@@ -162,8 +162,7 @@ function CompHeader({ onVoltar, onExportExcel, onExportPdf, exportDisabled = fal
           Voltar para análise do cliente
         </a>
         <h1 style={{
-          margin: 0, fontSize: 24, fontWeight: 700, letterSpacing: -0.6, color: TOKENS.title,
-          display: 'flex', alignItems: 'center', gap: 10,
+          margin: 0, display: 'flex', alignItems: 'center', gap: 10,
         }}>
           Composição da renda verificada
           <Badge tone="blue" size="sm" dot>Open Finance</Badge>
@@ -235,7 +234,7 @@ function ResumoComposicao({ meses, summary, detail }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <StepNumber n={1} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Resumo da composição</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: TOKENS.title, letterSpacing: -0.2 }}>Resumo da composição</span>
         <span style={{ fontSize: 12, color: TOKENS.textMuted }}>(8 indicadores · {summary.monthsAnalyzed} meses)</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
@@ -293,7 +292,7 @@ function CompMensal({ meses }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <StepNumber n={2} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Composição mensal da renda</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: TOKENS.title, letterSpacing: -0.2 }}>Composição mensal da renda</span>
       </div>
       <p style={{ margin: '0 0 12px 32px', fontSize: 12.5, color: TOKENS.textMuted, maxWidth: 760 }}>
         Composição dos créditos identificados em cada mês e o valor efetivamente considerado para a renda validada.
@@ -383,7 +382,7 @@ function DetalhamentoMeses({ meses, detailByMonth, detail }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <StepNumber n={3} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Detalhamento dos créditos por mês</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: TOKENS.title, letterSpacing: -0.2 }}>Detalhamento dos créditos por mês</span>
         <span style={{ fontSize: 12, color: TOKENS.textMuted }}>(clique em um mês para expandir)</span>
         <div style={{ flex: 1 }} />
         <button className="lz-btn-ghost" onClick={() => {
@@ -467,7 +466,7 @@ function recurringGroupCellStyle(col) {
 function DetailGroup({ title, items, columns = DEFAULT_COLUMNS }) {
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 600, color: TOKENS.text, marginBottom: 8, letterSpacing: -0.1 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: TOKENS.title, marginBottom: 8, letterSpacing: -0.1 }}>
         {title} <span style={{ color: TOKENS.textSubtle, fontWeight: 500 }}>· {items.length} {items.length === 1 ? 'lançamento' : 'lançamentos'}</span>
       </div>
       {items.length === 0 ? (
@@ -481,11 +480,11 @@ function DetailGroup({ title, items, columns = DEFAULT_COLUMNS }) {
         <div style={{ border: `1px solid ${TOKENS.border}`, borderRadius: 10, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
-              <tr style={{ background: TOKENS.primarySoft, borderBottom: `1px solid ${TOKENS.primarySoftBorder}` }}>
+              <tr style={{ background: TOKENS.brand, borderBottom: `1px solid ${TOKENS.brand}` }}>
                 {columns.map((c) => (
                   <th key={c.key} style={{
                     padding: '9px 14px', textAlign: c.align === 'right' ? 'right' : 'left',
-                    fontWeight: 600, color: TOKENS.primaryFg, fontSize: 10.5,
+                    fontWeight: 700, color: '#FFFFFF', fontSize: 12,
                     textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap',
                   }}>{c.label}</th>
                 ))}
@@ -541,7 +540,7 @@ function CriterioCard() {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <StepNumber n={4} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Critério utilizado na composição da renda</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: TOKENS.title, letterSpacing: -0.2 }}>Critério utilizado na composição da renda</span>
       </div>
       <Card>
         <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 28 }}>
@@ -588,7 +587,7 @@ function LeituraOperacional({ onVoltar }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <StepNumber n={5} />
-        <span style={{ fontSize: 14, fontWeight: 600, color: TOKENS.text }}>Leitura operacional</span>
+        <span style={{ fontSize: 17, fontWeight: 700, color: TOKENS.title, letterSpacing: -0.2 }}>Leitura operacional</span>
       </div>
       <div className="lz-card" style={{
         padding: 18,

@@ -317,7 +317,7 @@ function CasesTable({ cases, allCases, activeFilter, onFilterChange, searchTerm,
         borderBottom: `1px solid ${TOKENS.border}`,
       }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 16, color: TOKENS.title, letterSpacing: -0.2 }}>Fila operacional de casos</h2>
+          <h2 style={{ margin: 0 }}>Fila operacional de casos</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12.5, color: TOKENS.textMuted }}>
             Regra principal: consentimento recente, consentimento pendente ou aceite pronto para acessar os outputs.
           </p>

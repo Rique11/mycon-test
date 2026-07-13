@@ -673,13 +673,13 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
 
           {caseItem.notes && (
             <section style={{ padding: 14, border: `1px solid ${TOKENS.border}`, borderRadius: 12, marginBottom: 14 }}>
-              <h3 style={{ margin: '0 0 8px', color: TOKENS.title, fontSize: 14 }}>Observações internas</h3>
+              <h3 style={{ margin: '0 0 8px' }}>Observações internas</h3>
               <p style={{ margin: 0, color: TOKENS.textMuted, fontSize: 12.8, lineHeight: 1.5 }}>{caseItem.notes}</p>
             </section>
           )}
 
           <section style={{ padding: 14, border: `1px solid ${TOKENS.border}`, borderRadius: 12, background: TOKENS.surface }}>
-            <h3 style={{ margin: '0 0 10px', color: TOKENS.title, fontSize: 14 }}>Histórico operacional</h3>
+            <h3 style={{ margin: '0 0 10px' }}>Histórico operacional</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {events.map((event, index) => (
                 <div key={`${event.label}-${index}`} style={{ display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr)', gap: 10 }}>
@@ -716,7 +716,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
 function DrawerSection({ number, title, children, background = TOKENS.surface }) {
   return (
     <section style={{ marginBottom: 16 }}>
-      <h3 style={{ margin: '0 0 10px', color: TOKENS.title, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <h3 style={{ margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
         {number && <StepNumber n={number} />}
         {title}
       </h3>

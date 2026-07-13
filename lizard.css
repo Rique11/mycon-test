@@ -297,6 +297,34 @@ body {
   background: #FFFFFF;
 }
 
+/* ── Tipografia — hierarquia de títulos (h1 > h2 > h3 > título
+   de tabela/seção), aplicada às tags semânticas h1/h2/h3 usadas nas telas do
+   app; estilos inline de cada elemento continuam podendo ajustar detalhes
+   pontuais (cor, margem, layout) sem perder a escala de tamanho/peso. ── */
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1.15;
+  color: var(--title);
+}
+
+h2 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 1.25;
+  color: var(--title);
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  line-height: 1.3;
+  color: var(--title);
+}
+
 /* ── Scrollbar (webkit) ─────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

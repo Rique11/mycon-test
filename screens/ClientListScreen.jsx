@@ -49,7 +49,7 @@ export default function ClientListScreen({ onSelectClient, onLogout, activeItem 
           borderBottom: `1px solid ${TOKENS.border}`,
           background: TOKENS.surface,
         }}>
-          <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.4, color: TOKENS.title, margin: 0 }}>
+          <h1 style={{ margin: 0 }}>
             Meus Clientes
           </h1>
           <span style={{ fontSize: 13, color: TOKENS.textMuted }}>

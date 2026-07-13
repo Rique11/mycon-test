@@ -171,7 +171,7 @@ export default function NewCaseModal({ defaultCaseId, existingCases = [], onClos
           borderBottom: `1px solid ${TOKENS.border}`,
         }}>
           <div>
-            <h2 style={{ margin: 0, color: TOKENS.title, fontSize: 18 }}>
+            <h2 style={{ margin: 0 }}>
               {createdCase ? 'Link de consentimento gerado' : 'Novo contemplado'}
             </h2>
             <p style={{ margin: '5px 0 0', color: TOKENS.textMuted, fontSize: 12.8, lineHeight: 1.45 }}>
