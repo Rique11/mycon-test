@@ -48,11 +48,13 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
         gap: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-          <img
-            src={logoLizard}
-            alt="Lizard"
-            style={{ width: 34, height: 34, borderRadius: 9, display: 'block', objectFit: 'cover', boxShadow: SHADOWS.brand }}
-          />
+          <div style={{ width: 34, height: 34, borderRadius: 9, overflow: 'hidden', flexShrink: 0, boxShadow: SHADOWS.brand }}>
+            <img
+              src={logoLizard}
+              alt="Lizard"
+              style={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover', transform: 'scale(1.3)' }}
+            />
+          </div>
           {!collapsed && (
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
               <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3, color: TOKENS.title }}>Lizard</span>

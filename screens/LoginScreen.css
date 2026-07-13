@@ -1,0 +1,295 @@
+/* Estilos da tela de Login: estética "reveal" (capa deslizante sobre o card +
+   gradiente de fundo que intensifica no hover/focus) aplicada à IDV Lizard
+   Intelligence / Mycon — azul profundo (#2454D9 / #102A73) sobre off-white.
+   Consome as CSS variables e tokens definidos em lizard.css. */
+
+/* ── Página ── */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--background);
+  position: relative;
+  isolation: isolate;
+  color: var(--foreground);
+}
+
+.login-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 60%, rgba(36, 84, 217, 0.22) 0%, transparent 60%),
+    radial-gradient(ellipse at 60% 40%, #1B3A8C 0%, #102A73 55%, #0A1C4D 100%);
+  opacity: 0;
+  transition: opacity 0.7s ease;
+  z-index: -1;
+}
+
+.login-page--revealed::before {
+  opacity: 1;
+}
+
+.login-glow {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at 30% 60%, rgba(148, 180, 255, 0.12) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.login-wrapper {
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Logo acima do card ── */
+.login-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 32px;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.login-logo--revealed {
+  opacity: 1;
+}
+
+.login-logo__mark {
+  width: 60px;
+  height: 60px;
+  border-radius: 15px;
+  object-fit: cover;
+  box-shadow: var(--shadow-brand);
+}
+
+.login-logo__credit {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.login-logo__credit-by {
+  color: #C5D6FF;
+}
+
+.login-logo__credit-name {
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+/* ── Card ── */
+.login-card {
+  background: var(--card);
+  border-radius: var(--radius-xl);
+  padding: 40px 34px;
+  box-shadow:
+    0 24px 80px rgba(16, 26, 51, 0.28),
+    0 0 0 1px var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.login-card__title {
+  font-family: inherit;
+  font-size: 23px;
+  font-weight: 700;
+  color: var(--title);
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.login-card__subtitle {
+  font-size: 13.5px;
+  color: var(--muted-foreground);
+  margin: 0 0 26px;
+}
+
+/* ── Capa (mark + nome do produto) ── */
+.login-cover {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, #1B3A8C 0%, #0A1C4D 78%);
+  border-radius: var(--radius-xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  cursor: pointer;
+  z-index: 10;
+  transform: translateY(0%);
+  transition: transform 0.65s cubic-bezier(0.77, 0, 0.18, 1);
+  padding: 24px;
+}
+
+.login-card:hover .login-cover,
+.login-cover--hidden {
+  transform: translateY(-105%);
+}
+
+.login-cover__mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 10px 28px rgba(36, 84, 217, 0.35));
+  transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.login-card:hover .login-cover__mark {
+  transform: scale(0.92) translateY(-4px);
+}
+
+.login-cover__mark img {
+  width: 76px;
+  height: 76px;
+  border-radius: 18px;
+  object-fit: cover;
+}
+
+.login-cover__name {
+  font-family: inherit;
+  font-size: 25px;
+  font-weight: 600;
+  color: #EAF0FE;
+  letter-spacing: 0.01em;
+  margin-top: 6px;
+}
+
+.login-cover__hint {
+  font-size: 11px;
+  color: rgba(197, 214, 255, 0.66);
+  margin-top: -2px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ── Formulário ── */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-form__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin-bottom: 7px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.login-form__input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  color: var(--card-foreground);
+  outline: none;
+  background: var(--panel);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  font-family: inherit;
+}
+
+.login-form__input::placeholder {
+  color: var(--subtle-foreground);
+}
+
+.login-form__input:focus {
+  border-color: var(--primary);
+  background: var(--card);
+  box-shadow: 0 0 0 3px rgba(36, 84, 217, 0.14);
+}
+
+.login-form__forgot {
+  text-align: right;
+  margin-top: -6px;
+}
+
+.login-form__forgot-btn {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 500;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.login-form__forgot-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.login-form__hint {
+  margin: -4px 0 0;
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+  text-align: right;
+}
+
+.login-form__error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--destructive);
+  background: var(--destructive-soft);
+  border: 1px solid rgba(193, 50, 56, 0.22);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+}
+
+.login-form__submit {
+  width: 100%;
+  padding: 13px;
+  background: var(--brand);
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+  box-shadow: var(--shadow-primary);
+  transition: transform 0.15s ease, background 0.2s ease, opacity 0.2s;
+  margin-top: 4px;
+}
+
+.login-form__submit:hover:not([disabled]) {
+  transform: translateY(-1px);
+  background: var(--primary);
+}
+
+.login-form__submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Rodapé (tagline) ── */
+.login-tagline {
+  text-align: center;
+  margin-top: 22px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.login-tagline__highlight {
+  color: var(--primary);
+  font-weight: 600;
+}
