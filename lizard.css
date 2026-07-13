@@ -270,6 +270,33 @@ body {
   background: var(--primary);
 }
 
+/* ── Sidebar em tema azul (fundo navy + conteúdo claro) ── */
+.lz-sidebar--dark { color: #FFFFFF; }
+
+.lz-sidebar--dark .lz-btn-ghost {
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.86);
+}
+.lz-sidebar--dark .lz-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.lz-sidebar--dark .lz-nav-item {
+  color: rgba(255, 255, 255, 0.72);
+}
+.lz-sidebar--dark .lz-nav-item:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #FFFFFF;
+}
+.lz-sidebar--dark .lz-nav-item.active {
+  background: rgba(255, 255, 255, 0.16);
+  color: #FFFFFF;
+}
+.lz-sidebar--dark .lz-nav-item.active::before {
+  background: #FFFFFF;
+}
+
 /* ── Scrollbar (webkit) ─────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

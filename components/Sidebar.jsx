@@ -1,3 +1,7 @@
+// Barra lateral de navegação da identidade Lizard Intelligence em tema azul:
+// fundo navy da marca com conteúdo claro, seletor de workspace, itens de menu,
+// selo de ambiente PoC, identificação do operador e ação de logout.
+
 import React from 'react';
 import { TOKENS, I, SHADOWS } from '../tokens.js';
 import Icon from './Icon.jsx';
@@ -30,14 +34,14 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
   }
 
   return (
-    <aside style={{
+    <aside className="lz-sidebar--dark" style={{
       width: collapsed ? 76 : 248,
       flexShrink: 0,
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      background: TOKENS.surface,
-      borderRight: `1px solid ${TOKENS.border}`,
+      background: TOKENS.brand,
+      borderRight: '1px solid rgba(255,255,255,.10)',
       transition: 'width .16s ease',
     }}>
       <div style={{
@@ -57,8 +61,8 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
           </div>
           {!collapsed && (
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-              <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3, color: TOKENS.title }}>Lizard</span>
-              <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.8, color: TOKENS.textSubtle, textTransform: 'uppercase' }}>
+              <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: -0.3, color: '#FFFFFF' }}>Lizard</span>
+              <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.8, color: 'rgba(255,255,255,.6)', textTransform: 'uppercase' }}>
                 Intelligence
               </span>
             </div>
@@ -82,15 +86,15 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
             padding: 0,
           }}
         >
-          <Icon d={collapsed ? I.chevRight : I.chevLeft} size={15} stroke={TOKENS.textMuted} strokeWidth={2} />
+          <Icon d={collapsed ? I.chevRight : I.chevLeft} size={15} stroke="rgba(255,255,255,.82)" strokeWidth={2} />
         </button>
       </div>
 
       <div style={{ padding: collapsed ? '0 12px 14px' : '0 14px 14px' }}>
         <button style={{
           width: '100%',
-          border: `1px solid ${TOKENS.border}`,
-          background: TOKENS.panel,
+          border: '1px solid rgba(255,255,255,.14)',
+          background: 'rgba(255,255,255,.08)',
           borderRadius: 10,
           padding: collapsed ? '9px 0' : '9px 11px',
           display: 'flex',
@@ -106,8 +110,8 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
             height: 28,
             flexShrink: 0,
             borderRadius: 7,
-            background: TOKENS.brand,
-            color: '#fff',
+            background: '#FFFFFF',
+            color: TOKENS.brand,
             fontSize: 11,
             fontWeight: 700,
             display: 'flex',
@@ -118,12 +122,12 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
           {!collapsed && (
             <>
               <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: TOKENS.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   Mycon Crédito
                 </span>
-                <span style={{ fontSize: 11, color: TOKENS.textSubtle, fontWeight: 500 }}>Ambiente PoC</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)', fontWeight: 500 }}>Ambiente PoC</span>
               </span>
-              <Icon d={I.chevDown} size={15} stroke={TOKENS.textSubtle} strokeWidth={2} />
+              <Icon d={I.chevDown} size={15} stroke="rgba(255,255,255,.6)" strokeWidth={2} />
             </>
           )}
         </button>
@@ -142,7 +146,7 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
               onClick={() => enabled && onNavigate?.(item.label)}
               style={{
                 ...(collapsed ? { justifyContent: 'center', gap: 0, padding: '10px 0' } : {}),
-                ...(!enabled ? { cursor: 'not-allowed', opacity: 0.48 } : {}),
+                ...(!enabled ? { cursor: 'not-allowed', opacity: 0.42 } : {}),
               }}
             >
               <Icon d={item.icon} size={18} stroke="currentColor" strokeWidth={active ? 1.85 : 1.75} />
@@ -160,13 +164,13 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
           gap: 8,
           padding: collapsed ? '9px 0' : '9px 11px',
           borderRadius: 9,
-          background: TOKENS.warningSoft,
-          border: `1px solid ${TOKENS.warningBorder}`,
+          background: 'rgba(251,191,36,.14)',
+          border: '1px solid rgba(251,191,36,.30)',
           marginBottom: 12,
         }} title="Ambiente de testes - POC">
-          <Icon d={I.flask} size={15} stroke={TOKENS.warning} strokeWidth={1.75} />
+          <Icon d={I.flask} size={15} stroke="#FCD34D" strokeWidth={1.75} />
           {!collapsed && (
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: TOKENS.warningStrong }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: '#FCD34D' }}>
               Ambiente de testes · POC
             </span>
           )}
@@ -185,18 +189,18 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
             height: 32,
             flexShrink: 0,
             borderRadius: '50%',
-            background: TOKENS.brand,
-            color: '#fff',
+            background: '#FFFFFF',
+            color: TOKENS.brand,
             fontSize: 12,
-            fontWeight: 600,
+            fontWeight: 700,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}>OM</span>
           {!collapsed && (
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: TOKENS.text }}>Operador Mycon</span>
-              <span style={{ fontSize: 11, color: TOKENS.textSubtle, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>Operador Mycon</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 operador@mycon.com.br
               </span>
             </div>
@@ -213,7 +217,7 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
               padding: collapsed ? '8px 0' : '8px 12px',
               fontSize: 12,
               fontWeight: 500,
-              color: TOKENS.textMuted,
+              color: 'rgba(255,255,255,.72)',
               textAlign: collapsed ? 'center' : 'left',
             }}
           >
