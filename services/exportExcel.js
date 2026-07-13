@@ -565,8 +565,6 @@ function buildAuditoriaSheet(ws, { client, caseItem, insights, income, dataStatu
       : dataStatus === 'empty'
         ? 'Real — sem dados Open Finance coletados ainda'
         : 'Demonstrativo — cliente não localizado na base de Clientes'],
-    ['Cliente (ID)', client?.id || '—'],
-    ['Caso (ID externo)', caseItem?.externalCaseId || '—'],
     ['Período analisado', periodo(income)],
     ['Meses efetivamente cobertos', monthsCovered ? `${monthsCovered} de 12` : '0 de 12 — sem dados'],
     ['Open Finance', client?.akropoliLinkId ? 'Conectado' : '—'],

@@ -107,14 +107,38 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '0 32px 40px' }}>
-            <ResumoComposicao meses={meses} summary={summary} detail={data?.detail || []} />
-            <CompMensal meses={meses} />
-            <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} />
-            <CriterioCard />
-            <LeituraOperacional onVoltar={onVoltar} />
+            <SectionBand n={1}>
+              <ResumoComposicao meses={meses} summary={summary} detail={data?.detail || []} />
+            </SectionBand>
+            <SectionBand n={2}>
+              <CompMensal meses={meses} />
+            </SectionBand>
+            <SectionBand n={3}>
+              <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} />
+            </SectionBand>
+            <SectionBand n={4}>
+              <CriterioCard />
+            </SectionBand>
+            <SectionBand n={5}>
+              <LeituraOperacional onVoltar={onVoltar} />
+            </SectionBand>
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ───────── Envelope de seção (fundo intercalado ímpar/par) ─────────
+function SectionBand({ n, children }) {
+  const isOdd = n % 2 === 1;
+  return (
+    <div style={{
+      background: isOdd ? TOKENS.primarySoft : TOKENS.surface,
+      borderRadius: 12,
+      padding: '20px 24px',
+    }}>
+      {children}
     </div>
   );
 }
