@@ -305,9 +305,214 @@ async function downloadWorkbook(workbook, filename) {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+// ── Helpers de valor textual (bloco de leitura V0) ───────────────────────────
+
+function moneyStr(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return `R$ ${Math.round(Number(value)).toLocaleString('pt-BR')}`;
+}
+
+function pctStr(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return `${(Number(value) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+}
+
+function dateTimeStr(value) {
+  if (!value) return 'Não informado';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? 'Não informado' : d.toLocaleString('pt-BR');
+}
+
+// Cabeçalho da tabela Parâmetro | Valor | Leitura / regra (regra mesclada 3–6).
+function paramTableHeader(ws, row) {
+  [[1, 'Parâmetro'], [2, 'Valor']].forEach(([col, text]) => {
+    const cell = ws.getCell(row, col);
+    cell.value = text;
+    cell.font = { name: FONT, size: 9, bold: true, color: { argb: COLOR.titleFont } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.colHeaderBg } };
+    cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+    border(cell, COLOR.borderMed);
+  });
+  ws.mergeCells(row, 3, row, 6);
+  const rule = ws.getCell(row, 3);
+  rule.value = 'Leitura / regra';
+  rule.font = { name: FONT, size: 9, bold: true, color: { argb: COLOR.titleFont } };
+  rule.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.colHeaderBg } };
+  rule.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+  for (let col = 4; col <= 6; col += 1) border(ws.getCell(row, col), COLOR.borderMed);
+  ws.getRow(row).height = 18;
+}
+
+function paramRow(ws, row, param, valor, rule, zebra) {
+  const pc = ws.getCell(row, 1);
+  pc.value = param;
+  pc.font = { name: FONT, size: 9, bold: true, color: { argb: COLOR.body } };
+  pc.alignment = { vertical: 'top', wrapText: true };
+  border(pc);
+  const vc = ws.getCell(row, 2);
+  vc.value = valor;
+  vc.font = { name: FONT, size: 10, bold: true, color: { argb: COLOR.body } };
+  vc.alignment = { vertical: 'top', wrapText: true };
+  border(vc);
+  ws.mergeCells(row, 3, row, 6);
+  const rc = ws.getCell(row, 3);
+  rc.value = rule;
+  rc.font = { name: FONT, size: 9, color: { argb: COLOR.subtitle } };
+  rc.alignment = { vertical: 'top', wrapText: true };
+  border(rc);
+  for (let col = 4; col <= 6; col += 1) border(ws.getCell(row, col));
+  if (zebra) {
+    const fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.zebraEven } };
+    for (let col = 1; col <= 6; col += 1) ws.getCell(row, col).fill = fill;
+  }
+  ws.getRow(row).height = Math.max(24, Math.ceil(String(rule).length / 68) * 13.5);
+}
+
+// Bloco de leitura V0: capacidade, comprometimento, reserva, estabilidade,
+// confiança e memória de cálculo. Valores derivados de insights/income/extrato/
+// caso Mycon; quando a fonte não existe, a célula explicita a pendência em vez
+// de assumir zero. Retorna a próxima linha livre.
+function appendResumoV0(ws, startRow, { client, caseItem, insights, income, statement }) {
+  let r = startRow;
+
+  const incomeMonths = income?.months || [];
+  const mesesRecebidos = income?.summary?.monthsAnalyzed || incomeMonths.length;
+
+  const receitas = incomeMonths.map((m) => Math.max(0, (num(m.totalCredits) ?? 0) - (num(m.betweenAccounts) ?? 0)));
+  const receitasPos = receitas.filter((v) => v > 0);
+  const receitaMedia = receitasPos.length ? avg(receitasPos) : null;
+
+  const validadas = incomeMonths.map((m) => num(m.validatedIncome)).filter((v) => v != null && v > 0);
+  const rendaValidada = validadas.length ? avg(validadas) : null;
+  const mesesRendaValida = validadas.length;
+
+  const renda = [num(insights?.avgMonthlyIncome12m), rendaValidada, receitaMedia]
+    .find((v) => v != null && Number.isFinite(v) && v > 0) ?? 0;
+  const gasto = num(insights?.avgMonthlySpend3m) ?? 0;
+
+  const parcela = num(caseItem?.installment ?? caseItem?.parcela ?? caseItem?.monthlyPayment);
+  const parcelaPendente = parcela == null;
+
+  const stmtRows = statement?.rows || [];
+  const flowByMonth = new Map();
+  let entradas12m = 0;
+  let saidas12m = 0;
+  stmtRows.forEach((row) => {
+    const inf = num(row.inflow) ?? 0;
+    const out = num(row.outflow) ?? 0;
+    entradas12m += inf;
+    saidas12m += out;
+    const ym = row.yearMonth || String(row.date || '').slice(0, 7);
+    const acc = flowByMonth.get(ym) || { inf: 0, out: 0 };
+    acc.inf += inf;
+    acc.out += out;
+    flowByMonth.set(ym, acc);
+  });
+  const mesesFluxo = flowByMonth.size;
+  const fluxoMedio = mesesFluxo ? (entradas12m - saidas12m) / mesesFluxo : null;
+  const mesesFluxoNeg = [...flowByMonth.values()].filter((v) => v.inf - v.out < 0).length;
+
+  let cv = null;
+  if (receitasPos.length >= 3) {
+    const media = avg(receitasPos);
+    const variancia = avg(receitasPos.map((v) => (v - media) ** 2));
+    cv = media > 0 ? Math.sqrt(variancia) / media : null;
+  }
+
+  const folga = parcelaPendente ? null : renda - gasto - parcela;
+  const comprometimento = renda > 0 ? gasto / renda : null;
+
+  const sections = [
+    ['CAPACIDADE & FLUXO DE CAIXA', [
+      ['Renda recorrente verificada', moneyStr(renda),
+        `Calculada com dados OF. Base V0 prioriza renda 12m do insight, renda mensal validada e receita sem transferências entre contas (${mesesRecebidos} meses).`],
+      ['(-) Gasto observado', moneyStr(gasto),
+        'Usa despesa média mensal 3m retornada pelo backend.'],
+      ['(-) Parcela do consórcio', parcelaPendente ? 'Pendente fonte Mycon' : moneyStr(parcela),
+        'A parcela não chegou em `caseItem`; o Excel não estima esse valor a partir do Open Finance.'],
+      ['(=) Folga sobre renda', parcelaPendente ? 'Pendente parcela' : moneyStr(folga),
+        'Depende de renda, gasto e parcela Mycon. Sem parcela, a V0 explicita pendência em vez de usar zero.'],
+      ['Fluxo líquido real da conta', fluxoMedio == null ? '—' : moneyStr(fluxoMedio),
+        `Média mensal de entradas menos saídas. Total 12m: entradas ${moneyStr(entradas12m)}, saídas ${moneyStr(saidas12m)}.`],
+      ['Origem da folga', 'Sem alerta V0',
+        'Folga operacional depende da parcela Mycon, que ainda não chegou ao exportador.'],
+    ]],
+    ['COMPROMETIMENTO & DÍVIDAS', [
+      ['Parcela / renda verificada', parcelaPendente ? 'Pendente parcela' : (renda > 0 ? pctStr(parcela / renda) : 'NaN'),
+        'Não calculado porque a parcela mensal não chegou ao exportador.'],
+      ['Débito/Renda', insights?.debtToIncomeRatio != null ? pctStr(insights.debtToIncomeRatio) : '—',
+        'Indicador agregado recebido em `insights.debtToIncomeRatio`.'],
+      ['Dívida total (empréstimos)', moneyStr(num(insights?.totalLiabilities) ?? 0),
+        'Total agregado de passivos recebido do backend. Contratos detalhados ainda não chegam ao Excel.'],
+      ['Fatura de cartão recorrente', 'Pendente payload',
+        'A V0 não recebe faturas/cartões detalhados. Não duplica compra de cartão e pagamento de fatura.'],
+      ['Comprometimento total / renda', comprometimento == null ? 'NaN' : pctStr(comprometimento),
+        'V0 usa gasto observado/renda. Versão posterior deve somar fatura, parcela e parcelas de dívida com fontes dedicadas.'],
+    ]],
+    ['RESERVA & PATRIMÔNIO', [
+      ['Investimentos mapeados via OF', moneyStr(num(insights?.totalAssets) ?? 0),
+        'Total agregado recebido em `insights.totalAssets`; detalhe por classe fica para payload dedicado de investimentos.'],
+      ['Reserva em conta', 'Indisponível na fonte atual',
+        'O exportador atual não recebe saldo atual/médio por conta. Não apresentar saldo médio sem histórico real.'],
+      ['Fôlego da conta', 'Indisponível na fonte atual',
+        'Depende de saldo atual ou saldo médio confiável. A V0 evita inferência sem fonte.'],
+      ['Cobertura investida (parcelas)', 'Pendente parcela',
+        'Depende de patrimônio investido e parcela mensal do caso.'],
+    ]],
+    ['ESTABILIDADE', [
+      ['Volatilidade da renda (CV)', cv == null ? '—' : pctStr(cv),
+        cv == null
+          ? 'Meses insuficientes para calcular volatilidade com segurança.'
+          : 'Coeficiente de variação da receita mensal (desvio-padrão ÷ média) nos meses com receita.'],
+      ['Meses com fluxo negativo', mesesFluxo ? String(mesesFluxoNeg) : 'Indisponível',
+        'Conta meses em que entradas menos saídas ficou abaixo de zero.'],
+      ['Meses com renda válida', incomeMonths.length ? String(mesesRendaValida) : 'Indisponível',
+        'Quantidade de meses com renda validada maior que zero no payload de composição.'],
+      ['Dias com saldo negativo', 'Indisponível na fonte atual',
+        'O JSON analisado não traz série diária de saldo; não simular esse indicador.'],
+      ['Saldo mínimo no período', 'Indisponível na fonte atual',
+        'Depende de histórico de saldo. A V0 explicita a limitação.'],
+    ]],
+    ['CONFIANÇA DO DADO & FONTES', [
+      ['Open Finance', client?.akropoliLinkId ? 'Conectado' : 'Não informado',
+        'Status operacional baseado no vínculo Akropoli do cliente recebido pelo front.'],
+      ['Período analisado', periodo(income),
+        `Meses efetivamente cobertos: ${mesesRecebidos}.`],
+      ['Último sync', dateTimeStr(insights?.lastSyncAt),
+        'Data informada pelo backend em `insights.lastSyncAt`, quando disponível.'],
+      ['Consentimento formal', 'Não detalhado neste payload',
+        'Não inferir permissões, validade ou escopo do consentimento apenas a partir do status de recurso.'],
+    ]],
+    ['MEMÓRIA DE CÁLCULO - V0', [
+      ['Renda', 'Calculada',
+        'Usa renda 12m do insight quando disponível; caso contrário, renda validada mensal ou receita OF sem transferências entre contas.'],
+      ['Gasto e fluxo', 'Calculado',
+        'Gasto usa insight 3m ou saídas do extrato. Fluxo usa entradas menos saídas por mês em `statement.rows`.'],
+      ['Parcela e comprometimento', 'Parcial',
+        'Parcela depende do caso Mycon. Se ausente, o dossiê mostra pendência e não trata como zero.'],
+      ['Limitações assumidas', 'Explícitas',
+        'Saldo médio, saldo mínimo, dias negativos, cartão detalhado, loans detalhado e consentimento formal ficam pendentes de payload/fonte.'],
+    ]],
+  ];
+
+  sections.forEach(([title, rows]) => {
+    sectionHeader(ws, r, 6, title);
+    r += 1;
+    paramTableHeader(ws, r);
+    r += 1;
+    rows.forEach((cols, idx) => {
+      paramRow(ws, r, cols[0], cols[1], cols[2], idx % 2 === 1);
+      r += 1;
+    });
+    r += 1;
+  });
+
+  return r;
+}
+
 // ── Construtores de aba ──────────────────────────────────────────────────────
 
-function buildResumoSheet(ws, { client, caseItem, insights, income, dataStatus }) {
+function buildResumoSheet(ws, { client, caseItem, insights, income, statement, dataStatus }) {
   noGrid(ws);
   ws.columns = [26, 14, 24, 15, 20, 15].map((width) => ({ width }));
 
@@ -414,6 +619,9 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, dataStatus }
   r += 2;
 
   noteRow(ws, r, 6, 'Memória de cálculo: renda verificada = mediana do total mensal de créditos de pagadores recorrentes (presentes em ≥4 meses), excluindo transferências próprias e atípicos. Janela de 12 meses completos quando disponível.', 28);
+  r += 2;
+
+  appendResumoV0(ws, r, { client, caseItem, insights, income, statement });
 }
 
 function buildRaioXSheet(ws, { income, statement }) {
@@ -597,7 +805,7 @@ export async function buildConsolidadoWorkbook({ client, caseItem, insights, inc
   const ExcelJS = await loadExcelJS();
   const workbook = new ExcelJS.Workbook();
 
-  buildResumoSheet(workbook.addWorksheet('01_Resumo'), { client, caseItem, insights, income, dataStatus });
+  buildResumoSheet(workbook.addWorksheet('01_Resumo'), { client, caseItem, insights, income, statement, dataStatus });
   buildRaioXSheet(workbook.addWorksheet('02_Raio_X_Credito_OF'), { income, statement });
   buildComposicaoSheet(workbook.addWorksheet('03_Composicao_Mensal'), { income });
   buildLancamentosSheet(workbook.addWorksheet('04_Lancamentos'), { income });
