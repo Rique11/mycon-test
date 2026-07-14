@@ -1,11 +1,13 @@
 /**
  * exportPdf.js — geração do extrato Open Finance 12m em PDF via janela de
- * impressão do navegador. Todo dado externo (nome, histórico, conta, tipo)
- * é escapado antes de entrar no HTML; a janela abre a partir de um Blob URL
- * com noopener, sem acesso à origem da aplicação.
+ * impressão do navegador, no formato de 5 colunas (Data Lançamento, Histórico,
+ * Descrição, Valor, Saldo). Todo dado externo (nome, histórico, descrição) é
+ * escapado antes de entrar no HTML; a janela abre a partir de um Blob URL com
+ * noopener, sem acesso à origem da aplicação.
  */
 
-import { escapeHtml, maskCpf, mesLabel, periodo, slug } from '../lib/format';
+import { escapeHtml, maskCpf, periodo, slug } from '../lib/format';
+import { buildExtratoLines } from './extratoFormat.js';
 
 function moneyBRL(value) {
   if (value == null) return '';
@@ -22,18 +24,15 @@ function dateBR(value) {
 }
 
 export function exportExtratoPdf(client, statement) {
-  const rows = statement?.rows || [];
+  const { lines } = buildExtratoLines(statement);
   const title = `Extrato Open Finance 12m - ${client?.name || 'Cliente'}`;
-  const htmlRows = rows.map((r) => `
+  const htmlRows = lines.map((line) => `
     <tr>
-      <td>${escapeHtml(dateBR(r.date))}</td>
-      <td>${escapeHtml(mesLabel(r.yearMonth))}</td>
-      <td>${escapeHtml(r.account || '')}</td>
-      <td>${escapeHtml(r.history || '')}</td>
-      <td>${escapeHtml(r.type || '')}</td>
-      <td class="num">${escapeHtml(moneyBRL(r.inflow))}</td>
-      <td class="num">${escapeHtml(moneyBRL(r.outflow))}</td>
-      <td>${escapeHtml(r.origin || 'Open Finance')}</td>
+      <td>${escapeHtml(dateBR(line.date))}</td>
+      <td>${escapeHtml(line.historico)}</td>
+      <td>${escapeHtml(line.descricao)}</td>
+      <td class="num">${escapeHtml(moneyBRL(line.valor))}</td>
+      <td class="num">${escapeHtml(moneyBRL(line.saldo))}</td>
     </tr>
   `).join('');
 
@@ -62,17 +61,14 @@ export function exportExtratoPdf(client, statement) {
         <table>
           <thead>
             <tr>
-              <th>Data</th>
-              <th>Mês</th>
-              <th>Conta</th>
+              <th>Data Lançamento</th>
               <th>Histórico</th>
-              <th>Tipo</th>
-              <th>Entrada</th>
-              <th>Saída</th>
-              <th>Origem</th>
+              <th>Descrição</th>
+              <th class="num">Valor</th>
+              <th class="num">Saldo</th>
             </tr>
           </thead>
-          <tbody>${htmlRows || '<tr><td colspan="8">Sem lançamentos disponíveis.</td></tr>'}</tbody>
+          <tbody>${htmlRows || '<tr><td colspan="5">Sem lançamentos disponíveis.</td></tr>'}</tbody>
         </table>
         <script>window.onload = () => { window.print(); };</script>
       </body>

@@ -7,6 +7,7 @@
 
 import { maskCpf as maskCpfShared, mesLabel, periodo, slug } from '../lib/format';
 import { PRODUCT_LABELS, receiptMethod } from './domain';
+import { buildExtratoLines } from './extratoFormat.js';
 
 async function loadExcelJS() {
   const mod = await import('exceljs');
@@ -524,28 +525,27 @@ function buildLancamentosSheet(ws, { income }) {
 
 function buildExtratoSheet(ws, { statement, clientLine }) {
   noGrid(ws);
-  ws.columns = [12, 8, 16, 34, 12, 12, 12, 20, 14].map((width) => ({ width }));
-  titleRow(ws, 1, 9, 'Extrato Open Finance 12m', 'Base bruta normalizada: data, histórico, entrada, saída.');
+  ws.columns = [14, 22, 40, 16, 16].map((width) => ({ width }));
+  titleRow(ws, 1, 5, 'Extrato Open Finance 12m', 'Base normalizada: data, histórico, descrição, valor e saldo acumulado.');
 
   let r = 3;
   if (clientLine) {
-    noteRow(ws, r, 9, clientLine, 16);
+    noteRow(ws, r, 5, clientLine, 16);
     r += 1;
   }
-  const rows = statement?.rows || [];
-  if (!rows.length) {
-    noteRow(ws, r, 9, NO_DATA_NOTE);
+  const { lines } = buildExtratoLines(statement);
+  if (!lines.length) {
+    noteRow(ws, r, 5, NO_DATA_NOTE);
     r += 1;
   }
-  columnHeaderRow(ws, r, ['Data', 'Mês', 'Conta', 'Histórico', 'Tipo', 'Entrada', 'Saída', 'ID transação', 'Origem']);
+  columnHeaderRow(ws, r, ['Data Lançamento', 'Histórico', 'Descrição', 'Valor', 'Saldo']);
   r += 1;
 
-  rows.forEach((row, idx) => {
+  lines.forEach((line, idx) => {
     dataRow(ws, r, [
-      toExcelDate(row.date), mesLabel(row.yearMonth), row.account || '', row.history || '', row.type || '',
-      row.inflow != null ? num(row.inflow) : null, row.outflow != null ? num(row.outflow) : null,
-      row.transactionId || '', row.origin || 'Open Finance',
-    ], { zebra: idx % 2 === 1, formats: [FMT.date, undefined, undefined, undefined, undefined, FMT.cur2, FMT.cur2, undefined, undefined] });
+      toExcelDate(line.date), line.historico, line.descricao,
+      num(line.valor) ?? 0, num(line.saldo) ?? 0,
+    ], { zebra: idx % 2 === 1, formats: [FMT.date, undefined, undefined, FMT.cur2, FMT.cur2] });
     r += 1;
   });
 }
