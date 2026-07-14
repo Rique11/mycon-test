@@ -5,17 +5,20 @@
  * manter Excel e PDF consistentes.
  *
  * O Open Finance Brasil não expõe nome de contraparte nas transações de conta:
- * o único texto livre é `transactionName` (campo `history` da resposta), que
- * vai para a Descrição. O Histórico é um rótulo derivado do código `type`
- * (PIX, TED, CARTAO, ...) combinado com o sentido crédito/débito. O "Valor" é
- * único e assinado (crédito positivo, débito negativo) e o "Saldo" é o saldo
- * corrente acumulado em ordem cronológica a partir de um saldo inicial
- * (`openingBalance` do extrato, ou 0 quando ausente), já que o Open Finance não
- * fornece saldo por lançamento.
+ * o único texto livre é `transactionName` (campo `history` da resposta). Alguns
+ * bancos já entregam esse texto como "«rótulo» - «contraparte»" (ex.:
+ * "Compra no débito - Uber ..."); nesse caso o rótulo vira Histórico e o
+ * restante vira Descrição, sem repetição. Quando não há esse separador, o
+ * Histórico é derivado do código `type` (PIX, TED, CARTAO, ...) com o sentido
+ * crédito/débito, e a Descrição recebe o texto integral. O "Valor" é único e
+ * assinado (crédito positivo, débito negativo) e o "Saldo" é o saldo corrente
+ * acumulado em ordem cronológica a partir de um saldo inicial (`openingBalance`
+ * do extrato, ou 0 quando ausente), já que o Open Finance não fornece saldo por
+ * lançamento.
  */
 
 // Rótulos de Histórico derivados do código `type` do Open Finance Brasil v2.
-// Cada entrada define o rótulo de crédito (entrada) e o de débito (saída).
+// Fallback quando o texto do lançamento não traz um rótulo explícito.
 const HISTORICO_LABELS = {
   PIX: { credit: 'Pix recebido', debit: 'Pix enviado' },
   TED: { credit: 'TED recebida', debit: 'TED enviada' },
@@ -35,6 +38,10 @@ const HISTORICO_LABELS = {
   PORTABILIDADE_SALARIO: { credit: 'Portabilidade de salário', debit: 'Portabilidade de salário' },
   OPERACAO_CREDITO: { credit: 'Operação de crédito', debit: 'Operação de crédito' },
 };
+
+// Comprimento máximo aceito para tratar o prefixo (antes do " - ") como rótulo
+// de Histórico; evita confundir uma contraparte longa com rótulo.
+const MAX_LABEL_LENGTH = 35;
 
 function toNumberOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -72,6 +79,23 @@ function humanizeType(type) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+// Separa o texto do lançamento em rótulo (Histórico) e contraparte (Descrição)
+// quando vem no formato "«rótulo» - «contraparte»". Divide no primeiro " - "
+// e só aceita o prefixo como rótulo se ambos os lados existirem e o prefixo for
+// curto. Caso contrário, devolve o texto inteiro como descrição, sem rótulo.
+function splitTransactionText(text) {
+  const raw = String(text || '').trim();
+  const sep = raw.indexOf(' - ');
+  if (sep > 0) {
+    const label = raw.slice(0, sep).trim();
+    const rest = raw.slice(sep + 3).trim();
+    if (label && rest && label.length <= MAX_LABEL_LENGTH) {
+      return { label, rest };
+    }
+  }
+  return { label: '', rest: raw };
+}
+
 // Valor único assinado do lançamento: usa um campo já assinado quando existe;
 // caso contrário deriva de entrada (crédito) / saída (débito), tratando a saída
 // como negativa independentemente de a fonte armazená-la com sinal ou módulo.
@@ -86,9 +110,9 @@ export function extratoSignedValue(row) {
   return 0;
 }
 
-// Deriva o rótulo de Histórico a partir do código `type` e do sentido do
-// lançamento (crédito = entrada, débito = saída). Sem `type` reconhecível,
-// cai para o texto legível do código e, por fim, para 'Crédito'/'Débito'.
+// Rótulo de Histórico a partir do código `type` e do sentido do lançamento
+// (crédito = entrada, débito = saída). Usado como fallback quando o texto do
+// lançamento não traz um rótulo explícito antes do " - ".
 export function historicoLabel(type, isCredit) {
   const key = String(type || '').trim().toUpperCase();
   const entry = HISTORICO_LABELS[key];
@@ -134,13 +158,17 @@ export function buildExtratoLines(statement) {
     balances[index] = running;
   }
 
-  const lines = rows.map((row, index) => ({
-    date: row?.date ?? null,
-    historico: historicoLabel(row?.type, isCreditRow(row)),
-    descricao: firstText(row?.description, row?.transactionName, row?.history),
-    valor: round2(values[index]),
-    saldo: balances[index],
-  }));
+  const lines = rows.map((row, index) => {
+    const source = firstText(row?.transactionName, row?.history, row?.description);
+    const { label, rest } = splitTransactionText(source);
+    return {
+      date: row?.date ?? null,
+      historico: label || historicoLabel(row?.type, isCreditRow(row)),
+      descricao: rest,
+      valor: round2(values[index]),
+      saldo: balances[index],
+    };
+  });
 
   return { opening, lines };
 }
