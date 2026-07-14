@@ -1,12 +1,40 @@
 /**
  * extratoFormat.js — normaliza os lançamentos do extrato para o formato
  * canônico de 5 colunas (Data Lançamento, Histórico, Descrição, Valor, Saldo),
- * usado tanto na exportação Excel quanto no PDF. O "Valor" é único e assinado
- * (crédito positivo, débito negativo) e o "Saldo" é o saldo corrente acumulado
- * calculado em ordem cronológica a partir de um saldo inicial (`openingBalance`
- * do extrato, ou 0 quando ausente), já que o Open Finance não fornece saldo por
- * lançamento. Fonte única de verdade para manter Excel e PDF consistentes.
+ * usado tanto na exportação Excel quanto no PDF. Fonte única de verdade para
+ * manter Excel e PDF consistentes.
+ *
+ * O Open Finance Brasil não expõe nome de contraparte nas transações de conta:
+ * o único texto livre é `transactionName` (campo `history` da resposta), que
+ * vai para a Descrição. O Histórico é um rótulo derivado do código `type`
+ * (PIX, TED, CARTAO, ...) combinado com o sentido crédito/débito. O "Valor" é
+ * único e assinado (crédito positivo, débito negativo) e o "Saldo" é o saldo
+ * corrente acumulado em ordem cronológica a partir de um saldo inicial
+ * (`openingBalance` do extrato, ou 0 quando ausente), já que o Open Finance não
+ * fornece saldo por lançamento.
  */
+
+// Rótulos de Histórico derivados do código `type` do Open Finance Brasil v2.
+// Cada entrada define o rótulo de crédito (entrada) e o de débito (saída).
+const HISTORICO_LABELS = {
+  PIX: { credit: 'Pix recebido', debit: 'Pix enviado' },
+  TED: { credit: 'TED recebida', debit: 'TED enviada' },
+  DOC: { credit: 'DOC recebido', debit: 'DOC enviado' },
+  TRANSFERENCIA_MESMA_INSTITUICAO: { credit: 'Transferência recebida', debit: 'Transferência enviada' },
+  BOLETO: { credit: 'Boleto recebido', debit: 'Pagamento de boleto' },
+  CONVENIO_ARRECADACAO: { credit: 'Convênio recebido', debit: 'Pagamento de convênio' },
+  PACOTE_TARIFA_SERVICOS: { credit: 'Estorno de tarifa', debit: 'Tarifa de serviço' },
+  TARIFA_SERVICOS_AVULSOS: { credit: 'Estorno de tarifa', debit: 'Tarifa de serviço' },
+  FOLHA_PAGAMENTO: { credit: 'Salário', debit: 'Folha de pagamento' },
+  DEPOSITO: { credit: 'Depósito', debit: 'Depósito' },
+  SAQUE: { credit: 'Saque', debit: 'Saque' },
+  CARTAO: { credit: 'Estorno', debit: 'Compra no débito' },
+  ENCARGOS_JUROS_CHEQUE_ESPECIAL: { credit: 'Estorno de encargos', debit: 'Encargos e juros' },
+  RENDIMENTO_APLIC_FINANCEIRA: { credit: 'Rendimento de aplicação', debit: 'Rendimento de aplicação' },
+  RESGATE_APLIC_FINANCEIRA: { credit: 'Resgate de aplicação', debit: 'Aplicação financeira' },
+  PORTABILIDADE_SALARIO: { credit: 'Portabilidade de salário', debit: 'Portabilidade de salário' },
+  OPERACAO_CREDITO: { credit: 'Operação de crédito', debit: 'Operação de crédito' },
+};
 
 function toNumberOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -35,6 +63,15 @@ function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
+// Converte um código bruto de `type` sem rótulo mapeado em texto legível
+// (ex.: 'OUTROS_CREDITOS' -> 'Outros creditos'), como fallback antes do genérico.
+function humanizeType(type) {
+  const raw = String(type || '').trim();
+  if (!raw) return '';
+  const words = raw.replace(/_/g, ' ').toLowerCase().trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 // Valor único assinado do lançamento: usa um campo já assinado quando existe;
 // caso contrário deriva de entrada (crédito) / saída (débito), tratando a saída
 // como negativa independentemente de a fonte armazená-la com sinal ou módulo.
@@ -47,6 +84,24 @@ export function extratoSignedValue(row) {
   if (inflow !== null && inflow !== 0) return Math.abs(inflow);
   if (outflow !== null && outflow !== 0) return -Math.abs(outflow);
   return 0;
+}
+
+// Deriva o rótulo de Histórico a partir do código `type` e do sentido do
+// lançamento (crédito = entrada, débito = saída). Sem `type` reconhecível,
+// cai para o texto legível do código e, por fim, para 'Crédito'/'Débito'.
+export function historicoLabel(type, isCredit) {
+  const key = String(type || '').trim().toUpperCase();
+  const entry = HISTORICO_LABELS[key];
+  if (entry) return isCredit ? entry.credit : entry.debit;
+  return humanizeType(type) || (isCredit ? 'Crédito' : 'Débito');
+}
+
+// Sentido do lançamento: crédito quando há entrada explícita, débito quando há
+// saída explícita, senão pelo sinal do valor (>= 0 tratado como crédito).
+function isCreditRow(row) {
+  if (toNumberOrNull(row?.inflow) !== null && Number(row.inflow) !== 0) return true;
+  if (toNumberOrNull(row?.outflow) !== null && Number(row.outflow) !== 0) return false;
+  return extratoSignedValue(row) >= 0;
 }
 
 export function extratoOpeningBalance(statement) {
@@ -81,8 +136,8 @@ export function buildExtratoLines(statement) {
 
   const lines = rows.map((row, index) => ({
     date: row?.date ?? null,
-    historico: firstText(row?.history, row?.type),
-    descricao: firstText(row?.description, row?.counterparty, row?.merchant, row?.payee),
+    historico: historicoLabel(row?.type, isCreditRow(row)),
+    descricao: firstText(row?.description, row?.transactionName, row?.history),
     valor: round2(values[index]),
     saldo: balances[index],
   }));
