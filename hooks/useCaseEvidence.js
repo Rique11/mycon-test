@@ -2,12 +2,15 @@
  * useCaseEvidence.js — hook que carrega as evidências Open Finance de um caso
  * (insights, composição de renda, extrato 12m e links) a partir da API, além de
  * helpers puros para normalizar bancos e derivar instituições/contas dessas
- * evidências. Quando a coleta revela novas instituições, sincroniza os bancos
- * do caso via callback de atualização.
+ * evidências. Se o cliente tem conexão ativa mas nunca foi sincronizado, dispara
+ * a coleta inicial (sync) antes de buscar composição, extrato e links, para que
+ * as evidências reflitam os dados coletados. Quando a coleta revela novas
+ * instituições, sincroniza os bancos do caso via callback de atualização.
  */
 
 import React from 'react';
 import { clientsApi } from '../services/api';
+import { ensureClientSynced } from '../services/clientSync';
 import { resolveClientForCase } from '../services/clientResolution.js';
 
 // IDs opacos (linkId ULID, hash sha256/512, UUID) que às vezes aparecem nos
@@ -236,16 +239,18 @@ export function useCaseEvidence(caseItem, onUpdateCase) {
 
   React.useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     async function loadEvidence() {
       setEvidenceState((current) => ({ ...current, loading: true, error: '' }));
       try {
         const { client, id } = await resolveClientForCase(caseItem);
-        const [insights, income, statement, linksResult] = await Promise.all([
-          clientsApi.getInsights(id),
-          clientsApi.getIncomeComposition(id, { months: 12 }),
-          clientsApi.getStatement(id, { months: 12 }),
-          clientsApi.getLinks(id).catch(() => []),
+        const initialInsights = await clientsApi.getInsights(id, controller.signal);
+        const insights = await ensureClientSynced(id, client, initialInsights, controller.signal);
+        const [income, statement, linksResult] = await Promise.all([
+          clientsApi.getIncomeComposition(id, { months: 12 }, controller.signal),
+          clientsApi.getStatement(id, { months: 12 }, controller.signal),
+          clientsApi.getLinks(id, controller.signal).catch(() => []),
         ]);
         if (cancelled) return;
         const links = Array.isArray(linksResult) ? linksResult : linksResult?.content || [];
@@ -286,6 +291,7 @@ export function useCaseEvidence(caseItem, onUpdateCase) {
     loadEvidence();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [caseItem.id, caseItem.clientId, caseItem.cpf, caseItem.email, caseItem.name]);
 

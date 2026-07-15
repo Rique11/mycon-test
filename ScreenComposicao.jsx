@@ -30,6 +30,10 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
   const { data: clientData, loading: clientLoading } = useClientData(clientId);
   const [exportError, setExportError] = React.useState(null);
 
+  React.useEffect(() => {
+    if (clientData.syncPerformed) retry();
+  }, [clientData.syncPerformed, retry]);
+
   if (loading || error) {
     return (
       <AsyncScreen

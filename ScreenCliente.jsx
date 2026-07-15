@@ -34,8 +34,12 @@ export default function ScreenCliente({
 }) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useClientData(clientId);
-  const { data: incomeData, loading: incomeLoading } = useIncomeComposition(clientId);
+  const { data: incomeData, loading: incomeLoading, retry: retryIncome } = useIncomeComposition(clientId);
   const [exportError, setExportError] = React.useState(null);
+
+  React.useEffect(() => {
+    if (data.syncPerformed) retryIncome();
+  }, [data.syncPerformed, retryIncome]);
 
   if (loading || incomeLoading || error) {
     return (
