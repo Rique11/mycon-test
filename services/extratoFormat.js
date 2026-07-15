@@ -5,17 +5,27 @@
  * manter Excel e PDF consistentes.
  *
  * O Open Finance Brasil não expõe nome de contraparte nas transações de conta:
- * o único texto livre é `transactionName` (campo `history` da resposta). Alguns
- * bancos já entregam esse texto como "«rótulo» - «contraparte»" (ex.:
- * "Compra no débito - Uber ..."); nesse caso o rótulo vira Histórico e o
- * restante vira Descrição, sem repetição. Quando não há esse separador, o
- * Histórico é derivado do código `type` (PIX, TED, CARTAO, ...) com o sentido
- * crédito/débito, e a Descrição recebe o texto integral. O "Valor" é único e
- * assinado (crédito positivo, débito negativo) e o "Saldo" é o saldo corrente
- * acumulado em ordem cronológica a partir de um saldo inicial (`openingBalance`
- * do extrato, ou 0 quando ausente), já que o Open Finance não fornece saldo por
- * lançamento.
+ * o único texto livre é `transactionName` (campo `history` da resposta). Cada
+ * instituição estrutura esse texto de um jeito: o Nubank entrega
+ * "«rótulo»|«contraparte»" separado por pipe, com ou sem espaços (ex.:
+ * "Transferência Recebida|JOSE ANTONIO", "Parcela Paga | Diversos"); outros
+ * bancos usam "«rótulo» - «contraparte»" (ex.: "Compra no débito - Uber ...").
+ * Em ambos os casos o rótulo vira Histórico e o restante vira Descrição, sem
+ * repetição. Quando não há separador, o Histórico é derivado do código `type`
+ * (PIX, TED, CARTAO, ...) com o sentido crédito/débito, e a Descrição recebe o
+ * texto integral. O "Valor" é único e assinado (crédito positivo, débito
+ * negativo) e o "Saldo" é o saldo corrente acumulado em ordem cronológica a
+ * partir de um saldo inicial (`openingBalance` do extrato, ou 0 quando
+ * ausente), já que o Open Finance não fornece saldo por lançamento.
+ *
+ * Quando o cliente tem mais de uma instituição conectada, os lançamentos são
+ * agrupados por instituição de origem (groupStatementByInstitution) e cada
+ * instituição gera um extrato próprio, com saldo corrente independente —
+ * misturar lançamentos de contas diferentes num único saldo acumulado
+ * produziria um número sem significado.
  */
+
+import { isOpaqueToken, normalizeBankLabel, truncateToken } from './institutions.js';
 
 // Rótulos de Histórico derivados do código `type` do Open Finance Brasil v2.
 // Fallback quando o texto do lançamento não traz um rótulo explícito.
@@ -42,6 +52,12 @@ const HISTORICO_LABELS = {
 // Comprimento máximo aceito para tratar o prefixo (antes do " - ") como rótulo
 // de Histórico; evita confundir uma contraparte longa com rótulo.
 const MAX_LABEL_LENGTH = 35;
+
+// Comprimento máximo do rótulo antes do "|" (formato do Nubank). Mais
+// permissivo que o do " - " porque o pipe é um separador deliberado da
+// instituição, não pontuação de texto livre — rótulos como "Valor adicionado
+// na conta por cartão de crédito" excedem 35 caracteres.
+const MAX_PIPE_LABEL_LENGTH = 60;
 
 function toNumberOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -79,12 +95,24 @@ function humanizeType(type) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-// Separa o texto do lançamento em rótulo (Histórico) e contraparte (Descrição)
-// quando vem no formato "«rótulo» - «contraparte»". Divide no primeiro " - "
-// e só aceita o prefixo como rótulo se ambos os lados existirem e o prefixo for
-// curto. Caso contrário, devolve o texto inteiro como descrição, sem rótulo.
+// Separa o texto do lançamento em rótulo (Histórico) e contraparte (Descrição).
+// Tenta primeiro o formato do Nubank "«rótulo»|«contraparte»" (primeiro pipe,
+// com ou sem espaços ao redor); depois o formato "«rótulo» - «contraparte»"
+// (primeiro " - "). Em ambos, só aceita o prefixo como rótulo se ambos os
+// lados existirem e o prefixo respeitar o limite de comprimento. Caso
+// contrário, devolve o texto inteiro como descrição, sem rótulo.
 function splitTransactionText(text) {
   const raw = String(text || '').trim();
+
+  const pipe = raw.indexOf('|');
+  if (pipe > 0) {
+    const label = raw.slice(0, pipe).trim();
+    const rest = raw.slice(pipe + 1).trim();
+    if (label && rest && label.length <= MAX_PIPE_LABEL_LENGTH) {
+      return { label, rest };
+    }
+  }
+
   const sep = raw.indexOf(' - ');
   if (sep > 0) {
     const label = raw.slice(0, sep).trim();
@@ -93,6 +121,7 @@ function splitTransactionText(text) {
       return { label, rest };
     }
   }
+
   return { label: '', rest: raw };
 }
 
@@ -126,6 +155,69 @@ function isCreditRow(row) {
   if (toNumberOrNull(row?.inflow) !== null && Number(row.inflow) !== 0) return true;
   if (toNumberOrNull(row?.outflow) !== null && Number(row.outflow) !== 0) return false;
   return extratoSignedValue(row) >= 0;
+}
+
+// Campos que podem identificar a instituição/conta de origem de um lançamento,
+// na mesma ordem de prioridade usada na derivação de instituições da POC.
+const INSTITUTION_FIELDS = [
+  'bank',
+  'bankName',
+  'institution',
+  'institutionName',
+  'financialInstitution',
+  'brandName',
+  'account',
+  'accountName',
+  'origin',
+];
+
+function institutionToken(row) {
+  for (const field of INSTITUTION_FIELDS) {
+    const text = String(row?.[field] ?? '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+// Agrupa os lançamentos por instituição financeira de origem, devolvendo um
+// sub-extrato por instituição com rótulo legível. O agrupamento usa o nome
+// normalizado do banco quando identificável — tokens distintos da mesma
+// instituição (ex.: "Nubank" e "Nu Pagamentos") caem no mesmo extrato — e o
+// token bruto caso contrário, com rótulo genérico numerado ("Instituição N")
+// para identificadores opacos. Com uma única instituição — ou nenhuma
+// identificação nas linhas — devolve o extrato original intacto. Com várias,
+// o `openingBalance` global não pode ser atribuído a uma instituição
+// específica, então cada sub-extrato parte de saldo inicial 0.
+export function groupStatementByInstitution(statement) {
+  const rows = Array.isArray(statement?.rows) ? statement.rows : [];
+  const groups = new Map();
+  rows.forEach((row) => {
+    const token = institutionToken(row);
+    const key = normalizeBankLabel(token) || token;
+    if (!groups.has(key)) groups.set(key, { token, rows: [] });
+    groups.get(key).rows.push(row);
+  });
+
+  if (groups.size <= 1) {
+    const key = groups.size ? groups.keys().next().value : '';
+    return [{ key, label: normalizeBankLabel(key), statement: statement ?? { rows: [] } }];
+  }
+
+  let genericIndex = 0;
+  return Array.from(groups.entries()).map(([key, group]) => {
+    let label = normalizeBankLabel(key);
+    if (!label) {
+      genericIndex += 1;
+      label = isOpaqueToken(group.token)
+        ? `Instituição ${genericIndex} (${truncateToken(group.token)})`
+        : `Instituição ${genericIndex}`;
+    }
+    return {
+      key,
+      label,
+      statement: { ...statement, openingBalance: 0, rows: group.rows },
+    };
+  });
 }
 
 export function extratoOpeningBalance(statement) {

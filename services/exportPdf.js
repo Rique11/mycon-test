@@ -1,13 +1,15 @@
 /**
  * exportPdf.js — geração do extrato Open Finance 12m em PDF via janela de
  * impressão do navegador, no formato de 5 colunas (Data Lançamento, Histórico,
- * Descrição, Valor, Saldo). Todo dado externo (nome, histórico, descrição) é
- * escapado antes de entrar no HTML; a janela abre a partir de um Blob URL com
- * noopener, sem acesso à origem da aplicação.
+ * Descrição, Valor, Saldo). Quando o cliente tem mais de uma instituição
+ * conectada, o documento traz uma seção de extrato por instituição, cada uma
+ * com saldo corrente independente. Todo dado externo (nome, histórico,
+ * descrição) é escapado antes de entrar no HTML; a janela abre a partir de um
+ * Blob URL com noopener, sem acesso à origem da aplicação.
  */
 
 import { escapeHtml, maskCpf, periodo, slug } from '../lib/format';
-import { buildExtratoLines } from './extratoFormat.js';
+import { buildExtratoLines, groupStatementByInstitution } from './extratoFormat.js';
 
 function moneyBRL(value) {
   if (value == null) return '';
@@ -23,9 +25,8 @@ function dateBR(value) {
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 }
 
-export function exportExtratoPdf(client, statement) {
-  const { lines } = buildExtratoLines(statement);
-  const title = `Extrato Open Finance 12m - ${client?.name || 'Cliente'}`;
+function extratoTableHtml(groupStatement) {
+  const { lines } = buildExtratoLines(groupStatement);
   const htmlRows = lines.map((line) => `
     <tr>
       <td>${escapeHtml(dateBR(line.date))}</td>
@@ -34,6 +35,30 @@ export function exportExtratoPdf(client, statement) {
       <td class="num">${escapeHtml(moneyBRL(line.valor))}</td>
       <td class="num">${escapeHtml(moneyBRL(line.saldo))}</td>
     </tr>
+  `).join('');
+
+  return `
+    <table>
+      <thead>
+        <tr>
+          <th>Data Lançamento</th>
+          <th>Histórico</th>
+          <th>Descrição</th>
+          <th class="num">Valor</th>
+          <th class="num">Saldo</th>
+        </tr>
+      </thead>
+      <tbody>${htmlRows || '<tr><td colspan="5">Sem lançamentos disponíveis.</td></tr>'}</tbody>
+    </table>
+  `;
+}
+
+export function exportExtratoPdf(client, statement) {
+  const groups = groupStatementByInstitution(statement);
+  const title = `Extrato Open Finance 12m - ${client?.name || 'Cliente'}`;
+  const sections = groups.map(({ label, statement: groupStatement }) => `
+    ${label ? `<h2>${escapeHtml(label)}</h2>` : ''}
+    ${extratoTableHtml(groupStatement)}
   `).join('');
 
   const html = `
@@ -46,6 +71,7 @@ export function exportExtratoPdf(client, statement) {
           @page { size: A4 landscape; margin: 14mm; }
           body { font-family: Inter, Arial, sans-serif; color: #101A33; margin: 0; }
           h1 { font-size: 20px; margin: 0 0 6px; }
+          h2 { font-size: 14px; margin: 18px 0 8px; page-break-after: avoid; }
           .meta { font-size: 12px; color: #5F6F89; margin-bottom: 16px; }
           table { width: 100%; border-collapse: collapse; font-size: 10px; }
           th { text-align: left; padding: 7px 8px; border-bottom: 1px solid #DDE5F0; color: #5F6F89; text-transform: uppercase; font-size: 9px; }
@@ -58,18 +84,7 @@ export function exportExtratoPdf(client, statement) {
         <div class="meta">
           CPF: ${escapeHtml(client?.cpf ? maskCpf(client.cpf) : '—')} · Período: ${escapeHtml(periodo(statement))} · Gerado em ${escapeHtml(new Date().toLocaleString('pt-BR'))}
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Data Lançamento</th>
-              <th>Histórico</th>
-              <th>Descrição</th>
-              <th class="num">Valor</th>
-              <th class="num">Saldo</th>
-            </tr>
-          </thead>
-          <tbody>${htmlRows || '<tr><td colspan="5">Sem lançamentos disponíveis.</td></tr>'}</tbody>
-        </table>
+        ${sections}
         <script>window.onload = () => { window.print(); };</script>
       </body>
     </html>

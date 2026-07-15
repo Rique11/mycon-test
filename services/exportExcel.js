@@ -1,13 +1,14 @@
 // exportExcel.js — geração de planilhas Excel (ExcelJS) a partir dos dados
 // Open Finance e do caso de contemplação: o extrato normalizado e o dossiê
-// consolidado de 6 abas (Resumo, Raio-X, Composição Mensal, Lançamentos,
-// Extrato 12m, Auditoria), seguindo o Guia Funcional. O arquivo não contém
-// recomendação/decisão. Estilo visual replicado do Excel de referência
+// consolidado (Resumo, Raio-X, Composição Mensal, Lançamentos, uma aba de
+// Extrato 12m por instituição financeira conectada e Auditoria), seguindo o
+// Guia Funcional. O arquivo não contém recomendação/decisão. Estilo visual
+// replicado do Excel de referência
 // (mycon-poc-excel-consolidado-V1-visual-padronizado.xlsx).
 
 import { maskCpf as maskCpfShared, mesLabel, periodo, slug } from '../lib/format';
 import { PRODUCT_LABELS, receiptMethod } from './domain';
-import { buildExtratoLines } from './extratoFormat.js';
+import { buildExtratoLines, groupStatementByInstitution } from './extratoFormat.js';
 
 async function loadExcelJS() {
   const mod = await import('exceljs');
@@ -731,7 +732,28 @@ function buildLancamentosSheet(ws, { income }) {
   });
 }
 
-function buildExtratoSheet(ws, { statement, clientLine }) {
+// Nome de aba válido no Excel: sem os caracteres proibidos (: \ / ? * [ ]),
+// com no máximo 31 caracteres e único dentro do workbook (sufixo numérico em
+// caso de colisão). O conjunto `used` acumula os nomes já reservados.
+function safeSheetName(base, used) {
+  const name = String(base || 'Extrato')
+    .replace(/[\\/?*:[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 31) || 'Extrato';
+
+  let candidate = name;
+  let n = 2;
+  while (used.has(candidate.toLowerCase())) {
+    const suffix = ` (${n})`;
+    candidate = `${name.slice(0, 31 - suffix.length)}${suffix}`;
+    n += 1;
+  }
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function buildExtratoSheet(ws, { statement, clientLine, institutionLabel }) {
   noGrid(ws);
   ws.columns = [14, 22, 40, 16, 16].map((width) => ({ width }));
   titleRow(ws, 1, 5, 'Extrato Open Finance 12m', 'Base normalizada: data, histórico, descrição, valor e saldo acumulado.');
@@ -739,6 +761,10 @@ function buildExtratoSheet(ws, { statement, clientLine }) {
   let r = 3;
   if (clientLine) {
     noteRow(ws, r, 5, clientLine, 16);
+    r += 1;
+  }
+  if (institutionLabel) {
+    noteRow(ws, r, 5, `Instituição: ${institutionLabel}`, 16);
     r += 1;
   }
   const { lines } = buildExtratoLines(statement);
@@ -794,8 +820,19 @@ function buildAuditoriaSheet(ws, { client, caseItem, insights, income, dataStatu
 export async function exportExtrato(client, statement) {
   const ExcelJS = await loadExcelJS();
   const workbook = new ExcelJS.Workbook();
-  const ws = workbook.addWorksheet('Extrato_12m');
-  buildExtratoSheet(ws, { statement, clientLine: `Cliente: ${client?.name || '—'} · Período: ${periodo(statement)}` });
+  const groups = groupStatementByInstitution(statement);
+  const used = new Set();
+
+  groups.forEach((group) => {
+    const base = group.label ? `Extrato_${group.label}` : 'Extrato_12m';
+    const ws = workbook.addWorksheet(safeSheetName(base, used));
+    buildExtratoSheet(ws, {
+      statement: group.statement,
+      clientLine: `Cliente: ${client?.name || '—'} · Período: ${periodo(statement)}`,
+      institutionLabel: group.label,
+    });
+  });
+
   await downloadWorkbook(workbook, `extrato-${slug(client?.name)}-${statement?.toYearMonth || ''}.xlsx`);
 }
 
@@ -809,7 +846,20 @@ export async function buildConsolidadoWorkbook({ client, caseItem, insights, inc
   buildRaioXSheet(workbook.addWorksheet('02_Raio_X_Credito_OF'), { income, statement });
   buildComposicaoSheet(workbook.addWorksheet('03_Composicao_Mensal'), { income });
   buildLancamentosSheet(workbook.addWorksheet('04_Lancamentos'), { income });
-  buildExtratoSheet(workbook.addWorksheet('05_Extrato_12m'), { statement });
+
+  const extratoGroups = groupStatementByInstitution(statement);
+  const usedNames = new Set(
+    ['01_Resumo', '02_Raio_X_Credito_OF', '03_Composicao_Mensal', '04_Lancamentos', '06_Auditoria_Integridade']
+      .map((name) => name.toLowerCase()),
+  );
+  extratoGroups.forEach((group) => {
+    const base = group.label ? `05_Extrato_${group.label}` : '05_Extrato_12m';
+    buildExtratoSheet(workbook.addWorksheet(safeSheetName(base, usedNames)), {
+      statement: group.statement,
+      institutionLabel: group.label,
+    });
+  });
+
   buildAuditoriaSheet(workbook.addWorksheet('06_Auditoria_Integridade'), { client, caseItem, insights, income, dataStatus });
 
   return workbook;
