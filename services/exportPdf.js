@@ -1,9 +1,12 @@
 /**
  * exportPdf.js — geração do extrato Open Finance 12m em PDF via janela de
  * impressão do navegador, no formato de 5 colunas (Data Lançamento, Histórico,
- * Descrição, Valor, Saldo). Quando o cliente tem mais de uma instituição
- * conectada, o documento traz uma seção de extrato por instituição, cada uma
- * com saldo corrente independente. Todo dado externo (nome, histórico,
+ * Descrição, Valor, Saldo), com um documento separado por instituição
+ * financeira conectada — título, metadados e arquivo próprios, cada um com
+ * saldo corrente independente. Com uma única instituição o documento abre
+ * direto na janela de impressão; com várias, um arquivo é baixado por
+ * instituição e abre a impressão ao ser aberto, já que navegadores bloqueiam
+ * múltiplos pop-ups num único clique. Todo dado externo (nome, histórico,
  * descrição) é escapado antes de entrar no HTML; a janela abre a partir de um
  * Blob URL com noopener, sem acesso à origem da aplicação.
  */
@@ -53,15 +56,14 @@ function extratoTableHtml(groupStatement) {
   `;
 }
 
-export function exportExtratoPdf(client, statement) {
-  const groups = groupStatementByInstitution(statement);
-  const title = `Extrato Open Finance 12m - ${client?.name || 'Cliente'}`;
-  const sections = groups.map(({ label, statement: groupStatement }) => `
-    ${label ? `<h2>${escapeHtml(label)}</h2>` : ''}
-    ${extratoTableHtml(groupStatement)}
-  `).join('');
+function extratoDocumentHtml(client, statement, group) {
+  const clientName = client?.name || 'Cliente';
+  const title = group.label
+    ? `Extrato Open Finance 12m - ${clientName} - ${group.label}`
+    : `Extrato Open Finance 12m - ${clientName}`;
+  const institutionMeta = group.label ? ` · Instituição: ${escapeHtml(group.label)}` : '';
 
-  const html = `
+  return `
     <!doctype html>
     <html lang="pt-BR">
       <head>
@@ -71,7 +73,6 @@ export function exportExtratoPdf(client, statement) {
           @page { size: A4 landscape; margin: 14mm; }
           body { font-family: Inter, Arial, sans-serif; color: #101A33; margin: 0; }
           h1 { font-size: 20px; margin: 0 0 6px; }
-          h2 { font-size: 14px; margin: 18px 0 8px; page-break-after: avoid; }
           .meta { font-size: 12px; color: #5F6F89; margin-bottom: 16px; }
           table { width: 100%; border-collapse: collapse; font-size: 10px; }
           th { text-align: left; padding: 7px 8px; border-bottom: 1px solid #DDE5F0; color: #5F6F89; text-transform: uppercase; font-size: 9px; }
@@ -82,26 +83,45 @@ export function exportExtratoPdf(client, statement) {
       <body>
         <h1>${escapeHtml(title)}</h1>
         <div class="meta">
-          CPF: ${escapeHtml(client?.cpf ? maskCpf(client.cpf) : '—')} · Período: ${escapeHtml(periodo(statement))} · Gerado em ${escapeHtml(new Date().toLocaleString('pt-BR'))}
+          CPF: ${escapeHtml(client?.cpf ? maskCpf(client.cpf) : '—')}${institutionMeta} · Período: ${escapeHtml(periodo(statement))} · Gerado em ${escapeHtml(new Date().toLocaleString('pt-BR'))}
         </div>
-        ${sections}
+        ${extratoTableHtml(group.statement)}
         <script>window.onload = () => { window.print(); };</script>
       </body>
     </html>
   `;
+}
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const popup = window.open(url, '_blank', 'noopener');
+function downloadUrl(url, filename) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
-  if (!popup) {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `extrato-${slug(client?.name)}-${statement?.toYearMonth || ''}.html`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
+export function exportExtratoPdf(client, statement) {
+  const groups = groupStatementByInstitution(statement);
+  const period = statement?.toYearMonth || '';
+  const urls = [];
 
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  groups.forEach((group) => {
+    const html = extratoDocumentHtml(client, statement, group);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    urls.push(url);
+
+    const institutionSlug = group.label ? `-${slug(group.label)}` : '';
+    const filename = `extrato-${slug(client?.name)}${institutionSlug}-${period}.html`;
+
+    if (groups.length === 1) {
+      const popup = window.open(url, '_blank', 'noopener');
+      if (!popup) downloadUrl(url, filename);
+    } else {
+      downloadUrl(url, filename);
+    }
+  });
+
+  window.setTimeout(() => urls.forEach((url) => URL.revokeObjectURL(url)), 60_000);
 }
