@@ -81,8 +81,18 @@ export async function resolveClientForCase(caseItem) {
   return { client: resolution.client, id };
 }
 
-export function buildQueueCases(clients, cases) {
-  const localCases = cases || [];
+// Monta a fila combinando casos locais com clientes que existem apenas na API.
+// institutionsByClientId (clientId -> nomes de bancos, vindo dos vínculos da
+// API) preenche a coluna de bancos: casos locais sem bancos registrados são
+// enriquecidos e clientes só da API já nascem com os bancos resolvidos.
+export function buildQueueCases(clients, cases, institutionsByClientId = {}) {
+  const banksFor = (clientId) => institutionsByClientId[String(clientId ?? '')] || [];
+
+  const localCases = (cases || []).map((item) => {
+    if ((item.banks || []).length || !item.clientId) return item;
+    const banks = banksFor(item.clientId);
+    return banks.length ? { ...item, banks } : item;
+  });
 
   const apiOnly = (clients || [])
     .filter((client) => {
@@ -106,7 +116,7 @@ export function buildQueueCases(clients, cases) {
         product: '—',
         letterValue: '—',
         contemplationDate: null,
-        banks: [],
+        banks: banksFor(id),
         status: client.akropoliLinkId ? 'conectado' : 'aguardando',
         updatedAtLabel: '—',
         clientId: id,

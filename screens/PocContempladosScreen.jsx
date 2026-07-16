@@ -18,6 +18,7 @@ import { usePocCases } from '../hooks/usePocCases.js';
 import { useClientList } from '../hooks/useClientList';
 import { buildQueueCases } from '../services/clientResolution.js';
 import { getLocalBankLabels } from '../hooks/useCaseEvidence.js';
+import { useClientInstitutions } from '../hooks/useClientInstitutions.js';
 
 function countByFilter(cases, filter) {
   if (!filter.statuses) return cases.length;
@@ -73,7 +74,11 @@ export default function PocContempladosScreen({ onLogout, onNavigate, onSelectCl
   const [selectedCase, setSelectedCase] = React.useState(null);
   const [caseCreatedInModal, setCaseCreatedInModal] = React.useState(null);
 
-  const queueCases = React.useMemo(() => buildQueueCases(clients, cases), [clients, cases]);
+  const institutionsByClientId = useClientInstitutions(clients);
+  const queueCases = React.useMemo(
+    () => buildQueueCases(clients, cases, institutionsByClientId),
+    [clients, cases, institutionsByClientId],
+  );
 
   const filteredCases = React.useMemo(
     () => getFilteredCases(queueCases, activeFilter, searchTerm),
