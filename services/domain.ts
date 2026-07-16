@@ -174,6 +174,23 @@ export function getConsentGeneratedAt(caseItem: PocCase): Date | null {
   );
 }
 
+// Início do consentimento a partir dos vínculos Open Finance da API: o menor
+// connectedAt entre os links não revogados. É a fonte primária da data — o
+// caso local registra apenas quando o link foi gerado — e a única disponível
+// para clientes que entram na fila direto da API, sem caso local.
+export function getConsentStartFromLinks(links: unknown[] | null | undefined): Date | null {
+  if (!Array.isArray(links)) return null;
+  const dates = links
+    .map((link) => {
+      const record = (link ?? {}) as Record<string, unknown>;
+      const revoked = String(record.status ?? '').toUpperCase() === 'REVOKED';
+      return revoked ? null : parseDate(record.connectedAt);
+    })
+    .filter((date): date is Date => date != null);
+  if (!dates.length) return null;
+  return new Date(Math.min(...dates.map((date) => date.getTime())));
+}
+
 export interface QueueBusinessRules {
   key: string;
   statusLabel: string;

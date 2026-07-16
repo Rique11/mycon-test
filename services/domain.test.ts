@@ -8,6 +8,7 @@ import {
   QUEUE_ACTIONS,
   computeRecurringIncome,
   confTone,
+  getConsentStartFromLinks,
   getQueueBusinessRules,
   getStatusMeta,
   groupDetail,
@@ -285,5 +286,30 @@ describe('confTone', () => {
     expect(confTone('Media')).toBe('warning');
     expect(confTone('Baixa')).toBe('danger');
     expect(confTone(undefined)).toBe('danger');
+  });
+});
+
+describe('getConsentStartFromLinks', () => {
+  it('usa o menor connectedAt entre os links não revogados', () => {
+    const links = [
+      { linkId: 'a', status: 'ACTIVE', connectedAt: '2026-07-15T18:10:00Z' },
+      { linkId: 'b', status: 'ACTIVE', connectedAt: '2026-07-15T14:05:00Z' },
+    ];
+    expect(getConsentStartFromLinks(links)?.toISOString()).toBe('2026-07-15T14:05:00.000Z');
+  });
+
+  it('ignora links revogados', () => {
+    const links = [
+      { linkId: 'a', status: 'REVOKED', connectedAt: '2026-07-10T10:00:00Z' },
+      { linkId: 'b', status: 'ACTIVE', connectedAt: '2026-07-15T14:05:00Z' },
+    ];
+    expect(getConsentStartFromLinks(links)?.toISOString()).toBe('2026-07-15T14:05:00.000Z');
+  });
+
+  it('devolve null sem links ou sem connectedAt válido', () => {
+    expect(getConsentStartFromLinks(null)).toBeNull();
+    expect(getConsentStartFromLinks([])).toBeNull();
+    expect(getConsentStartFromLinks([{ linkId: 'a', status: 'ACTIVE' }])).toBeNull();
+    expect(getConsentStartFromLinks([{ linkId: 'a', status: 'ACTIVE', connectedAt: 'data-invalida' }])).toBeNull();
   });
 });
