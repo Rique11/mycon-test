@@ -87,15 +87,15 @@ describe('splitTransactionText via buildExtratoLines — formato hífen e fallba
     expect(line.descricao).toBe('Uber Trip');
   });
 
-  it('sem separador, deriva Histórico do type e mantém o texto na Descrição', () => {
+  it('sem separador e sem prefixo conhecido, deriva Histórico do type e mantém o texto na Descrição', () => {
     const line = lineFor({
       date: '2025-08-15',
       type: 'OUTROS',
       outflow: 2809.83,
-      transactionName: 'Pagamento de fatura',
+      transactionName: 'Aplicação RDB',
     });
     expect(line.historico).toBe('Outros');
-    expect(line.descricao).toBe('Pagamento de fatura');
+    expect(line.descricao).toBe('Aplicação RDB');
   });
 
   it('não trata contraparte longa com hífen como rótulo', () => {
@@ -103,6 +103,63 @@ describe('splitTransactionText via buildExtratoLines — formato hífen e fallba
     const line = lineFor({ date: '2025-09-01', type: 'PIX', inflow: 50, transactionName: texto });
     expect(line.historico).toBe('Pix recebido');
     expect(line.descricao).toBe(texto);
+  });
+});
+
+describe('splitTransactionText via buildExtratoLines — formato Itaú (prefixo no texto)', () => {
+  it('extrai o rótulo "Pix enviado com cartão" e mantém a contraparte', () => {
+    const line = lineFor({
+      date: '2025-07-30',
+      type: 'OUTROS',
+      outflow: 600,
+      transactionName: 'Pix enviado com cartão IGREJA EVANGELICA PENTECOSTAL',
+    });
+    expect(line.historico).toBe('Pix enviado');
+    expect(line.descricao).toBe('IGREJA EVANGELICA PENTECOSTAL');
+  });
+
+  it('normaliza "Compra débito" para "Compra no débito"', () => {
+    const line = lineFor({
+      date: '2025-07-23',
+      type: 'OUTROS',
+      outflow: 4.78,
+      transactionName: 'Compra débito LUCIDINA',
+    });
+    expect(line.historico).toBe('Compra no débito');
+    expect(line.descricao).toBe('LUCIDINA');
+  });
+
+  it('extrai "Crédito liberado" mantendo o restante como Descrição', () => {
+    const line = lineFor({
+      date: '2025-07-30',
+      type: 'OUTROS',
+      inflow: 600,
+      transactionName: 'Crédito liberado para Pix TEF',
+    });
+    expect(line.historico).toBe('Crédito liberado');
+    expect(line.descricao).toBe('para Pix TEF');
+  });
+
+  it('texto que é só o rótulo vira Histórico com Descrição vazia', () => {
+    const line = lineFor({
+      date: '2025-08-15',
+      type: 'OUTROS',
+      outflow: 2809.83,
+      transactionName: 'Pagamento de fatura',
+    });
+    expect(line.historico).toBe('Pagamento de fatura');
+    expect(line.descricao).toBe('');
+  });
+
+  it('separadores explícitos têm prioridade sobre o prefixo', () => {
+    const line = lineFor({
+      date: '2026-01-30',
+      type: 'OUTROS',
+      outflow: 20,
+      transactionName: 'Recarga efetuada|(11) 96504-4728',
+    });
+    expect(line.historico).toBe('Recarga efetuada');
+    expect(line.descricao).toBe('(11) 96504-4728');
   });
 });
 

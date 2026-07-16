@@ -11,9 +11,12 @@
  * "Transferência Recebida|JOSE ANTONIO", "Parcela Paga | Diversos"); outros
  * bancos usam "«rótulo» - «contraparte»" (ex.: "Compra no débito - Uber ...").
  * Em ambos os casos o rótulo vira Histórico e o restante vira Descrição, sem
- * repetição. Quando não há separador, o Histórico é derivado do código `type`
- * (PIX, TED, CARTAO, ...) com o sentido crédito/débito, e a Descrição recebe o
- * texto integral. O "Valor" é único e assinado (crédito positivo, débito
+ * repetição. O Itaú não usa separador algum e embute o rótulo no início do
+ * texto ("Pix enviado com cartão IGREJA...", "Compra débito LUCIDINA"); nesse
+ * caso o Histórico é extraído por prefixos conhecidos. Sem separador e sem
+ * prefixo conhecido, o Histórico é derivado do código `type` (PIX, TED,
+ * CARTAO, ...) com o sentido crédito/débito, e a Descrição recebe o texto
+ * integral. O "Valor" é único e assinado (crédito positivo, débito
  * negativo) e o "Saldo" é o saldo corrente acumulado em ordem cronológica a
  * partir de um saldo inicial (`openingBalance` do extrato, ou 0 quando
  * ausente), já que o Open Finance não fornece saldo por lançamento.
@@ -93,6 +96,41 @@ function humanizeType(type) {
   if (!raw) return '';
   const words = raw.replace(/_/g, ' ').toLowerCase().trim();
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// Prefixos de rótulo embutidos no início do texto do lançamento — padrão de
+// instituições que não usam separador (ex.: Itaú). Ordenados do mais
+// específico ao mais curto: o primeiro casamento vira o Histórico e o
+// restante do texto vira a Descrição. Aplicado somente quando os separadores
+// ("|" e " - ") não produziram rótulo.
+const KEYWORD_LABELS = [
+  { re: /^pix enviado com cart[aã]o(?=\s|$)/i, label: 'Pix enviado' },
+  { re: /^pix enviado(?=\s|$)/i, label: 'Pix enviado' },
+  { re: /^pix recebido(?=\s|$)/i, label: 'Pix recebido' },
+  { re: /^pix devolvido(?=\s|$)/i, label: 'Pix devolvido' },
+  { re: /^compra no d[eé]bito(?=\s|$)/i, label: 'Compra no débito' },
+  { re: /^compra d[eé]bito(?=\s|$)/i, label: 'Compra no débito' },
+  { re: /^compra com cart[aã]o(?=\s|$)/i, label: 'Compra com cartão' },
+  { re: /^transfer[eê]ncia enviada(?=\s|$)/i, label: 'Transferência enviada' },
+  { re: /^transfer[eê]ncia recebida(?=\s|$)/i, label: 'Transferência recebida' },
+  { re: /^cr[eé]dito liberado(?=\s|$)/i, label: 'Crédito liberado' },
+  { re: /^pagamento de boleto(?=\s|$)/i, label: 'Pagamento de boleto' },
+  { re: /^pagamento de fatura(?=\s|$)/i, label: 'Pagamento de fatura' },
+  { re: /^pagamento efetuado(?=\s|$)/i, label: 'Pagamento efetuado' },
+  { re: /^ted enviada(?=\s|$)/i, label: 'TED enviada' },
+  { re: /^ted recebida(?=\s|$)/i, label: 'TED recebida' },
+  { re: /^recarga efetuada(?=\s|$)/i, label: 'Recarga efetuada' },
+];
+
+function keywordSplit(text) {
+  const raw = String(text || '').trim();
+  for (const { re, label } of KEYWORD_LABELS) {
+    const match = raw.match(re);
+    if (match) {
+      return { label, rest: raw.slice(match[0].length).trim() };
+    }
+  }
+  return null;
 }
 
 // Separa o texto do lançamento em rótulo (Histórico) e contraparte (Descrição).
@@ -252,7 +290,11 @@ export function buildExtratoLines(statement) {
 
   const lines = rows.map((row, index) => {
     const source = firstText(row?.transactionName, row?.history, row?.description);
-    const { label, rest } = splitTransactionText(source);
+    let { label, rest } = splitTransactionText(source);
+    if (!label) {
+      const keyword = keywordSplit(source);
+      if (keyword) ({ label, rest } = keyword);
+    }
     return {
       date: row?.date ?? null,
       historico: label || historicoLabel(row?.type, isCreditRow(row)),
