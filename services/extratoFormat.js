@@ -157,18 +157,18 @@ function isCreditRow(row) {
   return extratoSignedValue(row) >= 0;
 }
 
-// Campos que podem identificar a instituição/conta de origem de um lançamento,
-// na mesma ordem de prioridade usada na derivação de instituições da POC.
+// Campos que identificam a instituição de origem de um lançamento. O backend
+// (V76) envia `institution` (client_links.institution_name via link_id) por
+// linha do statement; os demais são variantes de outras fontes. Campos de
+// conta (account/accountId) ficam de fora de propósito: agrupariam por conta
+// bancária, não por instituição, e `origin` é a constante "Open Finance".
 const INSTITUTION_FIELDS = [
-  'bank',
-  'bankName',
   'institution',
   'institutionName',
+  'bank',
+  'bankName',
   'financialInstitution',
   'brandName',
-  'account',
-  'accountName',
-  'origin',
 ];
 
 function institutionToken(row) {
