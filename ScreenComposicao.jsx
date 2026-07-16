@@ -115,7 +115,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '0 32px 40px' }}>
             <SectionBand n={1}>
-              <ResumoComposicao meses={meses} summary={summary} detail={data?.detail || []} />
+              <ResumoComposicao meses={meses} summary={summary} detail={data?.detail || []} insights={clientData?.insights} />
             </SectionBand>
             <SectionBand n={2}>
               <CompMensal meses={meses} recurringByMonth={recurringByMonth} />
@@ -204,11 +204,12 @@ function CompHeader({ onVoltar, onExportExcel, onExportPdf, exportDisabled = fal
 }
 
 // ───────── 1. Resumo da composição ─────────
-function ResumoComposicao({ meses, summary, detail }) {
+function ResumoComposicao({ meses, summary, detail, insights }) {
   const sum = (k) => meses.reduce((a, m) => a + m[k], 0);
   const mesesRecebidos = summary.monthsAnalyzed || meses.length || 1;
   const rendaRecorrente = React.useMemo(() => computeRecurringIncome(detail), [detail]);
   const trimestre = React.useMemo(() => receitaTrimestral(meses), [meses]);
+  const patrimonioInvestido = insights?.totalAssets != null ? parseFloat(insights.totalAssets) : null;
   // Ordem de exibição definida pelo produto: 1, 8, 7, 6, 4, 5, 2, 3
   const items = [
     { l: 'Receita média', v: fmt(sum('receita') / mesesRecebidos), s: `Média mensal (${summary.monthsAnalyzed}m)`, icon: I.wallet, tone: 'blue', mono: true,
@@ -225,8 +226,8 @@ function ResumoComposicao({ meses, summary, detail }) {
       info: 'Créditos fora do padrão (ex.: estornos, resgates de investimento) excluídos do cálculo da renda validada.' },
     { l: 'Receita recorrente', v: `${summary.recurringMonths} / ${summary.monthsAnalyzed}`, s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true,
       info: 'Quantidade de meses com receita recorrente identificada em relação ao total de meses analisados.' },
-    { l: 'Confiança da análise', v: summary.confidence, s: 'Padrão dos créditos', icon: I.shieldCheck, tone: confTone(summary.confidence), isBadge: true, badgeTone: confTone(summary.confidence),
-      info: 'Nível de confiança da classificação, com base no padrão e na estabilidade dos créditos identificados no período.' },
+    { l: 'Investimentos', v: patrimonioInvestido != null ? fmt(patrimonioInvestido) : '—', s: 'Patrimônio investido', icon: I.chart, tone: 'purple', mono: true,
+      info: 'Montante total do patrimônio investido do cliente identificado via Open Finance (fundos, renda fixa, renda variável e tesouro), na última sincronização.' },
   ];
   const tonesMap = {
     blue: { bg: TOKENS.primarySoft, fg: TOKENS.primary },
@@ -422,7 +423,7 @@ function DetalhamentoMeses({ meses, detailByMonth, recurringByMonth }) {
         <div style={{ flex: 1 }} />
         <button
           className="lz-btn-ghost"
-          onClick={() => setOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+          onClick={() => setOrder((o) => (o === 'desc' ? 'desc' : 'asc'))}
           title="Alternar ordem cronológica do histórico de meses"
           style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
