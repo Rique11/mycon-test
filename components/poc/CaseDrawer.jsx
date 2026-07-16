@@ -35,18 +35,22 @@ function formatDate(value) {
   }
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, options = {}) {
   if (!value) return '-';
   try {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) {
-      return parsed.toLocaleString('pt-BR', {
+      const datePart = parsed.toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
+      });
+      const timePart = parsed.toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
+        ...(options.withSeconds ? { second: '2-digit' } : {}),
       });
+      return `${datePart} às ${timePart}`;
     }
   } catch {
     return value;
@@ -248,7 +252,7 @@ function getEffectiveOutputInfo(caseItem, meta, evidence, loading) {
       tone: 'success',
       message: 'Extrato 12m e Excel consolidado disponiveis para revisao operacional.',
       generatedAt: evidence?.insights?.lastSyncAt
-        ? new Date(evidence.insights.lastSyncAt).toLocaleString('pt-BR')
+        ? formatDateTime(evidence.insights.lastSyncAt, { withSeconds: true })
         : caseItem.updatedAtLabel || 'Gerado a partir das evidencias Open Finance',
     };
   }
