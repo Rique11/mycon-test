@@ -195,6 +195,40 @@ describe('extratoSignedValue e saldo corrente', () => {
     expect(lines.map((l) => l.saldo)).toEqual([200, 242, 225.02]);
     expect(lines.map((l) => l.valor)).toEqual([200, 42, -16.98]);
   });
+
+  it('reconstrói o saldo retroativamente a partir do saldo atual', () => {
+    const { opening, lines, anchored } = buildExtratoLines({
+      currentBalance: 374.1,
+      rows: [
+        { date: '2026-06-24', type: 'RENDIMENTO_APLIC_FINANCEIRA', inflow: 0.02, transactionName: 'REMUNERACAO' },
+        { date: '2026-06-26', type: 'PIX', outflow: 47.93, transactionName: 'Pix enviado|MERCADINHO' },
+      ],
+    });
+    expect(anchored).toBe(true);
+    expect(lines.map((l) => l.saldo)).toEqual([422.03, 374.1]);
+    expect(opening).toBe(422.01);
+  });
+
+  it('saldo atual tem precedência sobre o saldo inicial e respeita a ordem cronológica', () => {
+    const { lines } = buildExtratoLines({
+      openingBalance: 999,
+      currentBalance: 100,
+      rows: [
+        { date: '2026-06-02', type: 'PIX', outflow: 50, transactionName: 'Pix enviado|B' },
+        { date: '2026-06-01', type: 'PIX', inflow: 30, transactionName: 'Pix recebido|A' },
+      ],
+    });
+    expect(lines.map((l) => l.saldo)).toEqual([100, 150]);
+  });
+
+  it('sem saldo atual mantém o acúmulo a partir do saldo inicial', () => {
+    const { anchored, lines } = buildExtratoLines({
+      openingBalance: 10,
+      rows: [{ date: '2026-06-01', type: 'PIX', inflow: 5, transactionName: 'Pix recebido|A' }],
+    });
+    expect(anchored).toBe(false);
+    expect(lines[0].saldo).toBe(15);
+  });
 });
 
 describe('groupStatementByInstitution', () => {
@@ -224,6 +258,7 @@ describe('groupStatementByInstitution', () => {
   it('separa um extrato por instituição com saldo corrente independente', () => {
     const statement = {
       openingBalance: 100,
+      currentBalance: 650,
       rows: [
         { date: '2025-07-16', bankName: 'Nubank', inflow: 200 },
         { date: '2025-07-16', bankName: 'Banco Itaú S.A.', inflow: 500 },
@@ -234,6 +269,7 @@ describe('groupStatementByInstitution', () => {
     expect(groups.map((g) => g.label)).toEqual(['Nubank', 'Itau']);
 
     const nubank = buildExtratoLines(groups[0].statement);
+    expect(nubank.anchored).toBe(false);
     expect(nubank.opening).toBe(0);
     expect(nubank.lines.map((l) => l.saldo)).toEqual([200, 150]);
 

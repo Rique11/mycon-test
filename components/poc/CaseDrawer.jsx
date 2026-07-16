@@ -14,7 +14,7 @@ import EvidKpi from '../EvidKpi.jsx';
 import { clientsApi } from '../../services/api';
 import { exportConsolidado } from '../../services/exportExcel.js';
 import { exportExtratoPdf } from '../../services/exportPdf.js';
-import { PRODUCT_LABELS, getQueueBusinessRules, getStatusMeta, computeReceitaStats, getConsentGeneratedAt, getConsentStartFromLinks } from '../../services/domain';
+import { PRODUCT_LABELS, getQueueBusinessRules, getStatusMeta, computeReceitaStats, getConsentGeneratedAt, getConsentStartFromLinks, hasReadyEvidence } from '../../services/domain';
 import { maskCpf, fmtBRL } from '../../lib/format';
 import { resolveClientForCase } from '../../services/clientResolution.js';
 import { useCaseEvidence, deriveAccountTags, deriveInstitutions } from '../../hooks/useCaseEvidence.js';
@@ -183,18 +183,6 @@ function getOutputInfo(caseItem, meta) {
     message: meta.pending || 'Sem pacote de extrato disponivel neste status.',
     generatedAt: null,
   };
-}
-
-function hasStatementRows(statement) {
-  return Array.isArray(statement?.rows) && statement.rows.length > 0;
-}
-
-function hasIncomeEvidence(income) {
-  return Array.isArray(income?.months) && income.months.length > 0;
-}
-
-function hasReadyEvidence(evidence) {
-  return hasStatementRows(evidence?.statement) || hasIncomeEvidence(evidence?.income);
 }
 
 function getEvidenceHash(caseItem, evidence) {

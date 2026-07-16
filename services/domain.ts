@@ -163,6 +163,27 @@ export function isConsentAccepted(caseItem: PocCase, options: QueueRuleOptions =
   );
 }
 
+// Status locais pré-consentimento que podem ser promovidos para 'conectado'
+// quando a API já retorna evidências (extrato ou composição de renda), sem
+// sobrescrever exceções operacionais ('escalado', 'manual') nem os status que
+// já refletem consentimento aceito.
+export const PROMOTABLE_STATUSES = new Set(['enviado', 'aguardando', 'expirado']);
+
+export interface EvidencePayload {
+  statement?: { rows?: unknown[] } | null;
+  income?: { months?: unknown[] } | null;
+}
+
+export function hasReadyEvidence(evidence: EvidencePayload | null | undefined): boolean {
+  return (Array.isArray(evidence?.statement?.rows) && evidence.statement.rows.length > 0)
+    || (Array.isArray(evidence?.income?.months) && evidence.income.months.length > 0);
+}
+
+export function getPromotedStatus(caseItem: PocCase, evidence: EvidencePayload | null | undefined): string | null {
+  if (!PROMOTABLE_STATUSES.has(caseItem.status ?? '')) return null;
+  return hasReadyEvidence(evidence) ? 'conectado' : null;
+}
+
 export function getConsentGeneratedAt(caseItem: PocCase): Date | null {
   const consent = (caseItem.consent ?? {}) as Record<string, unknown>;
   return parseDate(

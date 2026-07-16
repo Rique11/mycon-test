@@ -9,9 +9,11 @@ import {
   computeRecurringIncome,
   confTone,
   getConsentStartFromLinks,
+  getPromotedStatus,
   getQueueBusinessRules,
   getStatusMeta,
   groupDetail,
+  hasReadyEvidence,
   isConsentAccepted,
   mapMonth,
   receiptMethod,
@@ -48,6 +50,39 @@ describe('isConsentAccepted', () => {
 
   it('rejeita caso pendente', () => {
     expect(isConsentAccepted({ id: 'x', status: 'enviado' })).toBe(false);
+  });
+});
+
+describe('hasReadyEvidence', () => {
+  it('reconhece evidência por extrato ou composição de renda', () => {
+    expect(hasReadyEvidence({ statement: { rows: [{}] }, income: null })).toBe(true);
+    expect(hasReadyEvidence({ statement: null, income: { months: [{}] } })).toBe(true);
+  });
+
+  it('rejeita payload vazio ou ausente', () => {
+    expect(hasReadyEvidence({ statement: { rows: [] }, income: { months: [] } })).toBe(false);
+    expect(hasReadyEvidence(null)).toBe(false);
+  });
+});
+
+describe('getPromotedStatus', () => {
+  const readyEvidence = { statement: { rows: [{}] }, income: null };
+
+  it('promove caso pré-consentimento com evidência pronta', () => {
+    expect(getPromotedStatus({ id: 'x', status: 'enviado' }, readyEvidence)).toBe('conectado');
+    expect(getPromotedStatus({ id: 'x', status: 'aguardando' }, readyEvidence)).toBe('conectado');
+    expect(getPromotedStatus({ id: 'x', status: 'expirado' }, readyEvidence)).toBe('conectado');
+  });
+
+  it('não promove sem evidência', () => {
+    expect(getPromotedStatus({ id: 'x', status: 'enviado' }, { statement: { rows: [] } })).toBe(null);
+  });
+
+  it('não rebaixa status já aceito nem sobrescreve exceções operacionais', () => {
+    expect(getPromotedStatus({ id: 'x', status: 'pronto' }, readyEvidence)).toBe(null);
+    expect(getPromotedStatus({ id: 'x', status: 'conectado' }, readyEvidence)).toBe(null);
+    expect(getPromotedStatus({ id: 'x', status: 'escalado' }, readyEvidence)).toBe(null);
+    expect(getPromotedStatus({ id: 'x', status: 'manual' }, readyEvidence)).toBe(null);
   });
 });
 

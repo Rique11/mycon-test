@@ -17,9 +17,15 @@
  * prefixo conhecido, o Histórico é derivado do código `type` (PIX, TED,
  * CARTAO, ...) com o sentido crédito/débito, e a Descrição recebe o texto
  * integral. O "Valor" é único e assinado (crédito positivo, débito
- * negativo) e o "Saldo" é o saldo corrente acumulado em ordem cronológica a
- * partir de um saldo inicial (`openingBalance` do extrato, ou 0 quando
- * ausente), já que o Open Finance não fornece saldo por lançamento.
+ * negativo) e o "Saldo" é o saldo corrente por lançamento, que o Open Finance
+ * não fornece. Ele é reconstruído retroativamente a partir do saldo atual da
+ * conta quando o extrato traz esse dado (`currentBalance`/`closingBalance`/
+ * `balance`/`saldoAtual`/`saldoFinal`): o último lançamento cronológico recebe
+ * o saldo atual e os anteriores são derivados subtraindo cada movimento, o que
+ * ancora a coluna no saldo real do banco. Sem saldo atual, cai no acúmulo em
+ * ordem cronológica a partir de um saldo inicial (`openingBalance`, ou 0
+ * quando ausente) — nesse caso a coluna representa fluxo acumulado, não o
+ * saldo bancário real.
  *
  * Quando o cliente tem mais de uma instituição conectada, os lançamentos são
  * agrupados por instituição de origem (groupStatementByInstitution) e cada
@@ -225,7 +231,8 @@ function institutionToken(row) {
 // para identificadores opacos. Com uma única instituição — ou nenhuma
 // identificação nas linhas — devolve o extrato original intacto. Com várias,
 // o `openingBalance` global não pode ser atribuído a uma instituição
-// específica, então cada sub-extrato parte de saldo inicial 0.
+// específica, então cada sub-extrato parte de saldo inicial 0 e sem saldo
+// atual (o saldo global também não pode ser atribuído a uma instituição).
 export function groupStatementByInstitution(statement) {
   const rows = Array.isArray(statement?.rows) ? statement.rows : [];
   const groups = new Map();
@@ -253,7 +260,16 @@ export function groupStatementByInstitution(statement) {
     return {
       key,
       label,
-      statement: { ...statement, openingBalance: 0, rows: group.rows },
+      statement: {
+        ...statement,
+        openingBalance: 0,
+        currentBalance: null,
+        closingBalance: null,
+        balance: null,
+        saldoAtual: null,
+        saldoFinal: null,
+        rows: group.rows,
+      },
     };
   });
 }
@@ -268,12 +284,28 @@ export function extratoOpeningBalance(statement) {
   );
 }
 
-// Constrói as linhas do extrato no formato canônico. O saldo é acumulado em
-// ordem cronológica ascendente (estável por índice de origem para lançamentos
-// de mesma data) e associado de volta a cada linha na ordem original recebida.
+// Saldo atual da conta informado pelo extrato, quando disponível. Diferente do
+// saldo inicial, não tem fallback: a ausência muda o método de cálculo.
+export function extratoClosingBalance(statement) {
+  return toNumberOrNull(
+    statement?.currentBalance ??
+      statement?.closingBalance ??
+      statement?.balance ??
+      statement?.saldoAtual ??
+      statement?.saldoFinal,
+  );
+}
+
+// Constrói as linhas do extrato no formato canônico. Com saldo atual
+// disponível, o saldo é reconstruído retroativamente em ordem cronológica
+// descendente (o último lançamento recebe o saldo atual e cada anterior deriva
+// do seguinte); caso contrário, é acumulado em ordem ascendente a partir do
+// saldo inicial. Em ambos os casos a ordenação é estável por índice de origem
+// para lançamentos de mesma data, e o saldo é associado de volta a cada linha
+// na ordem original recebida.
 export function buildExtratoLines(statement) {
   const rows = Array.isArray(statement?.rows) ? statement.rows : [];
-  const opening = extratoOpeningBalance(statement);
+  const closing = extratoClosingBalance(statement);
 
   const values = rows.map(extratoSignedValue);
 
@@ -282,10 +314,22 @@ export function buildExtratoLines(statement) {
     .sort((a, b) => a.ts - b.ts || a.index - b.index);
 
   const balances = new Array(rows.length);
-  let running = opening;
-  for (const { index } of chronological) {
-    running = round2(running + values[index]);
-    balances[index] = running;
+  let opening;
+  if (closing !== null) {
+    let running = round2(closing);
+    for (let i = chronological.length - 1; i >= 0; i -= 1) {
+      const { index } = chronological[i];
+      balances[index] = running;
+      running = round2(running - values[index]);
+    }
+    opening = running;
+  } else {
+    opening = extratoOpeningBalance(statement);
+    let running = opening;
+    for (const { index } of chronological) {
+      running = round2(running + values[index]);
+      balances[index] = running;
+    }
   }
 
   const lines = rows.map((row, index) => {
@@ -304,5 +348,5 @@ export function buildExtratoLines(statement) {
     };
   });
 
-  return { opening, lines };
+  return { opening, lines, anchored: closing !== null };
 }

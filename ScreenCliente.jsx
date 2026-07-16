@@ -1,6 +1,6 @@
 // Tela de análise do cliente: contexto, resumo visual de KPIs, evidências de receita
-// (entradas totais via Open Finance), explicação ao operador e decisão sugerida,
-// a partir dos hooks useClientData e useIncomeComposition.
+// (entradas totais via Open Finance), gráfico de evolução da receita, explicação ao
+// operador e decisão sugerida, a partir dos hooks useClientData e useIncomeComposition.
 
 import React from 'react';
 import { TOKENS, I } from './tokens.js';
@@ -119,7 +119,7 @@ export default function ScreenCliente({
     variacao: null,
     fontes: insights.incomeDetected ? 1 : 0,
     atipicos: 0,
-    confianca: insights.healthScore ? (insights.healthScore > 75 ? 'Alta' : 'Média') : 'Baixa',
+    confianca: incomeData?.summary?.confidence || 'Baixa',
     dataAnalise: insights.lastSyncAt ? fmtDate(insights.lastSyncAt) : '—',
     contemplacao: '—',
     prioridade: 'Média',
@@ -475,6 +475,11 @@ function Evidencias({ cliente, receita, mesesReceita, onVerComposicao }) {
 }
 
 function IncomeChart({ data }) {
+  const fmtChartValue = (v) => (
+    v >= 1000
+      ? `R$ ${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
+      : fmtBRL(v)
+  );
   const W = 780, H = 180;
   const pad = { top: 24, right: 16, bottom: 34, left: 52 };
   const cW = W - pad.left - pad.right;
@@ -501,7 +506,7 @@ function IncomeChart({ data }) {
             <line x1={pad.left} y1={y} x2={W - pad.right} y2={y}
               stroke={TOKENS.border} strokeWidth={1} strokeDasharray={v === 0 ? 'none' : '3 3'} />
             <text x={pad.left - 6} y={y + 4} textAnchor="end" fontSize={9.5} fill={TOKENS.textMuted}>
-              {v === 0 ? 'R$ 0' : `R$ ${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`}
+              {v === 0 ? 'R$ 0' : fmtChartValue(v)}
             </text>
           </g>
         );
@@ -513,7 +518,7 @@ function IncomeChart({ data }) {
         const slotW = cW / data.length;
         const x = pad.left + slotW * i + (slotW - barW) / 2;
         const y = pad.top + cH - barH;
-        const label = d.v > 0 ? `R$ ${Math.round(d.v / 1000)} mil` : '';
+        const label = d.v > 0 ? fmtChartValue(d.v) : '';
         return (
           <g key={`${d.m}-${i}`}>
             <rect x={x} y={y} width={barW} height={barH} rx={3}

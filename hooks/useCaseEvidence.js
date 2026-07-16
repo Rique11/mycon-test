@@ -5,13 +5,16 @@
  * evidências. Se o cliente tem conexão ativa mas nunca foi sincronizado, dispara
  * a coleta inicial (sync) antes de buscar composição, extrato e links, para que
  * as evidências reflitam os dados coletados. Quando a coleta revela novas
- * instituições, sincroniza os bancos do caso via callback de atualização.
+ * instituições, sincroniza os bancos do caso via callback de atualização; quando
+ * revela evidências prontas em caso ainda pré-consentimento, promove o status
+ * local para 'conectado', mantendo fila, contadores e drawer consistentes.
  */
 
 import React from 'react';
 import { clientsApi } from '../services/api';
 import { ensureClientSynced } from '../services/clientSync';
 import { resolveClientForCase } from '../services/clientResolution.js';
+import { getPromotedStatus } from '../services/domain';
 import { isOpaqueToken, normalizeBankLabel, truncateToken } from '../services/institutions.js';
 
 export { normalizeBankLabel };
@@ -223,11 +226,18 @@ export function useCaseEvidence(caseItem, onUpdateCase) {
         const evidencePayload = { client, id, insights, income, statement, links, error: '' };
         const derivedBanks = deriveInstitutions(caseItem, evidencePayload);
         const currentBanks = getLocalBankLabels(caseItem);
+        const patch = {};
         if (derivedBanks.length && !haveSameBankLabels(currentBanks, derivedBanks)) {
-          onUpdateCaseRef.current?.(caseItem.id, {
-            banks: derivedBanks,
-            updatedAtLabel: caseItem.updatedAtLabel,
-          });
+          patch.banks = derivedBanks;
+        }
+        const promotedStatus = getPromotedStatus(caseItem, evidencePayload);
+        if (promotedStatus) {
+          patch.status = promotedStatus;
+        } else if (patch.banks) {
+          patch.updatedAtLabel = caseItem.updatedAtLabel;
+        }
+        if (Object.keys(patch).length) {
+          onUpdateCaseRef.current?.(caseItem.id, patch);
         }
         setEvidenceState({
           loading: false,
