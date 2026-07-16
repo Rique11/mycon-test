@@ -63,7 +63,7 @@ function getCaseEvents(caseItem) {
 
   const meta = getStatusMeta(caseItem.status);
   return [
-    { at: caseItem.createdAt, label: 'Caso carregado a partir do mock da POC', actor: 'Lizard' },
+    { at: caseItem.createdAt, label: 'Histórico salvo localmente em ambiente de POC', actor: 'Lizard' },
     { at: caseItem.createdAt, label: meta.label, actor: meta.owner || 'Operação' },
   ];
 }

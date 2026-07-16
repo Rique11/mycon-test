@@ -1,11 +1,22 @@
 // Barra lateral de navegação da identidade Lizard Intelligence em tema azul:
 // fundo navy da marca com conteúdo claro, seletor de workspace, itens de menu,
-// selo de ambiente PoC, identificação do operador e ação de logout.
+// selo de ambiente PoC, identificação do operador autenticado (nome e e-mail
+// vindos de /bankers/me) e ação de logout.
 
 import React from 'react';
 import { TOKENS, I, SHADOWS } from '../tokens.js';
 import Icon from './Icon.jsx';
 import logoLizard from '../assets/logo-app-icon.png';
+import { useBankerProfile } from '../hooks/useBankerProfile';
+
+// Iniciais do operador para o avatar: primeira letra do primeiro e do último
+// nome (ou as duas primeiras letras de nome único).
+function operatorInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'OP';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
 
 const NAV_ITEMS = [
   { label: 'Painel', icon: I.grid, enabled: false },
@@ -22,6 +33,9 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
   });
+  const profile = useBankerProfile();
+  const operatorName = profile?.name || 'Operador Mycon';
+  const operatorEmail = profile?.email || '';
 
   function toggleCollapsed() {
     setCollapsed((current) => {
@@ -183,7 +197,7 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
           gap: 10,
           padding: collapsed ? '8px 0' : '8px 4px',
           marginBottom: onLogout ? 10 : 0,
-        }} title="Operador Mycon">
+        }} title={operatorEmail ? `${operatorName} · ${operatorEmail}` : operatorName}>
           <span style={{
             width: 32,
             height: 32,
@@ -196,13 +210,17 @@ export default function Sidebar({ activeItem = 'Clientes', onNavigate, onLogout 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-          }}>OM</span>
+          }}>{operatorInitials(operatorName)}</span>
           {!collapsed && (
             <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF' }}>Operador Mycon</span>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                operador@mycon.com.br
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {operatorName}
               </span>
+              {operatorEmail && (
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,.55)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {operatorEmail}
+                </span>
+              )}
             </div>
           )}
         </div>
