@@ -226,7 +226,7 @@ function ResumoComposicao({ meses, summary, detail, insights }) {
       info: 'Créditos fora do padrão (ex.: estornos, resgates de investimento) excluídos do cálculo da renda validada.' },
     { l: 'Receita recorrente', v: `${summary.recurringMonths} / ${summary.monthsAnalyzed}`, s: 'Meses identificados', icon: I.refresh, tone: 'success', mono: true,
       info: 'Quantidade de meses com receita recorrente identificada em relação ao total de meses analisados.' },
-    { l: 'Investimentos - Em manutenção', v: patrimonioInvestido != null ? fmt(patrimonioInvestido) : '—', s: 'Patrimônio investido', icon: I.chart, tone: 'purple', mono: true,
+    { l: 'Investimentos', v: patrimonioInvestido != null ? fmt(patrimonioInvestido) : '—', s: 'Patrimônio investido', icon: I.chart, tone: 'purple', mono: true,
       info: 'Montante total do patrimônio investido do cliente identificado via Open Finance (fundos, renda fixa, renda variável e tesouro), na última sincronização.' },
   ];
   const tonesMap = {
