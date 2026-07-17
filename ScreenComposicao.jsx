@@ -423,7 +423,7 @@ function DetalhamentoMeses({ meses, detailByMonth, recurringByMonth }) {
         <div style={{ flex: 1 }} />
         <button
           className="lz-btn-ghost"
-          onClick={() => setOrder((o) => (o === 'desc' ? 'desc' : 'asc'))}
+          onClick={() => setOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
           title="Alternar ordem cronológica do histórico de meses"
           style={{ padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}
         >
