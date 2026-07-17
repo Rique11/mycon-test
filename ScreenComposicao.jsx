@@ -219,7 +219,7 @@ function ResumoComposicao({ meses, summary, detail, insights }) {
     { l: 'Receita trimestral', v: fmt(trimestre), s: 'Últimos 3 meses', icon: I.history, tone: 'warning', mono: true,
       info: 'Receita recebida nos últimos 3 meses analisados, exceto transferências entre contas.' },
     { l: 'Renda recorrente', v: fmt(rendaRecorrente.total), s: 'No período', icon: I.send, tone: 'blue', mono: true,
-      info: 'Entradas com o mesmo valor recebido em 2 ou mais meses consecutivos, ou recebidas de uma mesma fonte em 3 ou mais meses consecutivos. Basta atender a um dos critérios.' },
+      info: 'Créditos classificados como renda recorrente pelo backend: pagador presente em 4 ou mais meses distintos, ou PIX recorrente validável. Mesma definição da renda validada e da aba de Auditoria do Excel.' },
     { l: 'Entre contas', v: fmt(sum('ent')), s: 'No período', icon: I.link, tone: 'purple', mono: true,
       info: 'Transferências entre contas da mesma titularidade identificadas no período; não representam nova geração de renda.' },
     { l: 'Créditos atípicos', v: fmt(sum('atip')), s: 'Removidos da média', icon: I.alert, tone: 'danger', mono: true,
@@ -581,7 +581,7 @@ function DetailGroup({ title, items, columns = DEFAULT_COLUMNS }) {
 function CriterioCard() {
   const bullets = [
     { l: 'Receita recorrente mensal', v: 'entra na renda validada', tone: 'success' },
-    { l: 'Renda recorrente', v: 'valor repetido em 2+ meses consecutivos ou mesma fonte em 3+ meses consecutivos', tone: 'blue' },
+    { l: 'Renda recorrente', v: 'pagador presente em 4+ meses distintos ou PIX recorrente validável (classificação do backend)', tone: 'blue' },
     { l: 'Transferência entre contas', v: 'não entra', tone: 'neutral' },
     { l: 'Entrada não recorrente', v: 'normalmente não entra', tone: 'warning' },
     { l: 'Crédito atípico / excluído', v: 'não entra', tone: 'danger' },

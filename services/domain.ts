@@ -339,31 +339,37 @@ export function mapMonth(mo: Record<string, unknown>, lines: Array<Record<string
   };
 }
 
-export interface ReceitaStats {
+export interface RendaStats {
   media12m: number | null;
   volatilidade: number | null;
 }
 
 /**
- * Deriva receita média mensal (12m) e volatilidade (coeficiente de variação
- * da receita mensal) a partir de um payload de composição de renda
- * (`{ months, summary }`), para uso em cards de evidência de renda. A receita
- * considerada exclui transferências entre contas do titular (`betweenAccounts`).
+ * Deriva média mensal (12m) e volatilidade (coeficiente de variação) da renda
+ * verificada (`validatedIncome`, pagadores recorrentes) a partir de um payload
+ * de composição de renda (`{ months, summary }`). A série cobre a janela
+ * analisada inteira: meses sem crédito algum não vêm em `months`, então a série
+ * é completada com zeros até `summary.monthsAnalyzed`. Meses sem renda contam
+ * como instabilidade — não são filtrados, para que renda presente em poucos
+ * meses da janela não aparente estabilidade.
  */
-export function computeReceitaStats(
+export function computeRendaStats(
   income: { months?: Array<Record<string, unknown>>; summary?: { monthsAnalyzed?: number } } | null | undefined,
-): ReceitaStats {
+): RendaStats {
   const meses = (income?.months || []).map((mo) => mapMonth(mo));
   const mesesAnalisados = income?.summary?.monthsAnalyzed || meses.length;
-  const somaReceita = meses.reduce((a, m) => a + m.receita, 0);
-  const media12m = mesesAnalisados > 0 ? somaReceita / mesesAnalisados : null;
+  const serie = meses.map((m) => m.val);
+  while (serie.length < mesesAnalisados) serie.push(0);
 
-  const totaisMensais = meses.map((m) => m.receita);
+  const media12m = mesesAnalisados > 0
+    ? serie.reduce((a, v) => a + v, 0) / mesesAnalisados
+    : null;
+
   let volatilidade: number | null = null;
-  if (totaisMensais.length >= 2) {
-    const media = totaisMensais.reduce((a, v) => a + v, 0) / totaisMensais.length;
+  if (serie.length >= 2) {
+    const media = serie.reduce((a, v) => a + v, 0) / serie.length;
     if (media > 0) {
-      const variancia = totaisMensais.reduce((a, v) => a + (v - media) ** 2, 0) / totaisMensais.length;
+      const variancia = serie.reduce((a, v) => a + (v - media) ** 2, 0) / serie.length;
       volatilidade = Math.sqrt(variancia) / media;
     }
   }
@@ -372,9 +378,6 @@ export function computeReceitaStats(
 }
 
 // ── Renda recorrente e receita trimestral ────────────────────────────────────
-
-export const RECURRING_AMOUNT_MIN_MONTHS = 2;
-export const RECURRING_SOURCE_MIN_MONTHS = 3;
 
 const SOURCE_STOPWORDS = new Set([
   'PIX', 'TED', 'DOC', 'CRED', 'CREDITO', 'DEBITO', 'RECEBIMENTO', 'RECEBIDA', 'RECEBIDO',
@@ -406,48 +409,17 @@ function ymIndex(ym: unknown): number | null {
   return y * 12 + (m - 1);
 }
 
-interface MonthRun {
-  start: number;
-  end: number;
-  len: number;
-}
-
 /**
- * Agrupa uma lista de índices de mês (ver `ymIndex`) em sequências consecutivas,
- * retornando apenas as sequências com pelo menos `minLen` meses. Base tanto para
- * `consecutiveRunMonths` (usado por `computeRecurringIncome`) quanto para
- * `recurringDetailByMonth`, que precisa saber o início/fim de cada sequência.
+ * Um lançamento compõe a renda recorrente quando o backend o classificou como
+ * tal: `considered === true` (entra na renda validada) ou, na ausência do
+ * campo, classificação REC (pagador recorrente em ≥4 meses distintos) ou PIX
+ * (PIX recorrente validável). Definição única — a mesma do
+ * IncomeCompositionService e da aba de Auditoria do Excel.
  */
-function consecutiveRuns(months: Iterable<number>, minLen: number): MonthRun[] {
-  const sorted = [...new Set(months)].sort((a, b) => a - b);
-  const runs: MonthRun[] = [];
-  let start = 0;
-  for (let i = 1; i <= sorted.length; i += 1) {
-    if (i === sorted.length || sorted[i] !== sorted[i - 1] + 1) {
-      const len = i - start;
-      if (len >= minLen) runs.push({ start: sorted[start], end: sorted[i - 1], len });
-      start = i;
-    }
-  }
-  return runs;
-}
-
-function consecutiveRunMonths(months: Iterable<number>, minLen: number): Set<number> {
-  const qualifying = new Set<number>();
-  consecutiveRuns(months, minLen).forEach((run) => {
-    for (let m = run.start; m <= run.end; m += 1) qualifying.add(m);
-  });
-  return qualifying;
-}
-
-function findRun(months: number[], minLen: number, month: number): MonthRun | null {
-  return consecutiveRuns(months, minLen).find((run) => month >= run.start && month <= run.end) ?? null;
-}
-
-function pickPrimaryRun(byAmount: MonthRun | null, bySource: MonthRun | null): MonthRun | null {
-  if (!byAmount) return bySource;
-  if (!bySource) return byAmount;
-  return bySource.len > byAmount.len ? bySource : byAmount;
+function isRecurringLine(line: Record<string, unknown>): boolean {
+  if (typeof line.considered === 'boolean') return line.considered;
+  const cls = String(line.classification || '');
+  return cls === 'REC' || cls === 'PIX';
 }
 
 function monthIndexToYm(index: number): string {
@@ -462,51 +434,19 @@ export interface RecurringIncomeResult {
 }
 
 /**
- * Calcula a renda recorrente a partir do detalhamento de lançamentos
- * (`detail` do payload de composição de renda). Um lançamento de crédito é
- * considerado recorrente quando atende a pelo menos um dos critérios:
- *  1. o mesmo valor foi recebido em 2 ou mais meses consecutivos;
- *  2. a mesma fonte pagadora (derivada da descrição) creditou valores em
- *     3 ou mais meses consecutivos.
- * Transferências entre contas do titular (ENT) e créditos atípicos (ATIP)
- * não compõem renda e ficam fora do cálculo.
+ * Soma a renda recorrente a partir do detalhamento de lançamentos (`detail` do
+ * payload de composição de renda), usando a classificação do backend
+ * (`isRecurringLine`): créditos REC/PIX considerados na renda validada.
+ * Transferências entre contas (ENT), não recorrentes (NREC) e atípicos (ATIP)
+ * ficam fora.
  */
 export function computeRecurringIncome(
   lines: Array<Record<string, unknown>> | null | undefined,
 ): RecurringIncomeResult {
-  const candidates = (lines || [])
-    .map((l) => ({
-      month: ymIndex(l.yearMonth),
-      amountCents: Math.round(num(l.amount) * 100),
-      source: sourceKey(l.description),
-      amount: num(l.amount),
-      classification: String(l.classification || ''),
-    }))
-    .filter((l) => l.month != null && l.amountCents > 0 && l.classification !== 'ENT' && l.classification !== 'ATIP');
-
-  const monthsByAmount = new Map<number, number[]>();
-  const monthsBySource = new Map<string, number[]>();
-  candidates.forEach((l) => {
-    monthsByAmount.set(l.amountCents, [...(monthsByAmount.get(l.amountCents) || []), l.month as number]);
-    if (l.source) {
-      monthsBySource.set(l.source, [...(monthsBySource.get(l.source) || []), l.month as number]);
-    }
-  });
-
-  const amountRuns = new Map<number, Set<number>>();
-  monthsByAmount.forEach((months, amountCents) => {
-    amountRuns.set(amountCents, consecutiveRunMonths(months, RECURRING_AMOUNT_MIN_MONTHS));
-  });
-  const sourceRuns = new Map<string, Set<number>>();
-  monthsBySource.forEach((months, source) => {
-    sourceRuns.set(source, consecutiveRunMonths(months, RECURRING_SOURCE_MIN_MONTHS));
-  });
-
-  return candidates.reduce<RecurringIncomeResult>((acc, l) => {
-    const byAmount = amountRuns.get(l.amountCents)?.has(l.month as number) ?? false;
-    const bySource = l.source ? (sourceRuns.get(l.source)?.has(l.month as number) ?? false) : false;
-    if (byAmount || bySource) {
-      return { total: acc.total + l.amount, entryCount: acc.entryCount + 1 };
+  return (lines || []).reduce<RecurringIncomeResult>((acc, l) => {
+    const amount = num(l.amount);
+    if (amount > 0 && isRecurringLine(l)) {
+      return { total: acc.total + amount, entryCount: acc.entryCount + 1 };
     }
     return acc;
   }, { total: 0, entryCount: 0 });
@@ -524,20 +464,18 @@ export interface RecurringDetailLine {
 }
 
 /**
- * Agrupa por mês (chave `yearMonth`) os lançamentos considerados renda
- * recorrente pelos mesmos critérios de `computeRecurringIncome`, para exibição
- * no grupo "C. Renda Recorrente" do detalhamento mensal. Cada lançamento recebe
- * um `statusLabel`: quando a sequência de meses consecutivos (por valor ou por
- * fonte pagadora) ainda alcança o último mês analisado, o status indica há
- * quantos meses a renda vem se repetindo (`statusOngoing: true`, ex.: "4 meses");
- * quando a sequência terminou antes do último mês analisado, o status indica o
- * período em que a renda foi recorrente (`statusOngoing: false`, ex.: "Jan/25 -
- * Jul/25"), sinalizando nos meses daquele período que a renda deixou de se
- * repetir. Quando um lançamento atende aos dois critérios (valor e fonte), a
- * sequência mais longa é usada como referência do status. Cada item devolve
- * também o lançamento bruto (`raw`) para permitir excluir da listagem
- * genérica de receita (grupo "A") os lançamentos já exibidos no grupo "C",
- * evitando duplicidade entre os dois grupos.
+ * Agrupa por mês (chave `yearMonth`) os lançamentos que o backend classificou
+ * como renda recorrente (`isRecurringLine` — mesma definição de
+ * `computeRecurringIncome`), para exibição no grupo "C. Renda Recorrente" do
+ * detalhamento mensal. O `statusLabel` de cada lançamento é apenas
+ * apresentação: a fonte pagadora (derivada da descrição via `sourceKey`)
+ * localiza os meses distintos em que aquele pagador creditou renda recorrente;
+ * quando o pagador aparece no último mês analisado, o status indica em quantos
+ * meses a renda se repete (`statusOngoing: true`, ex.: "4 meses"); quando não
+ * aparece mais, indica o período em que foi recorrente (`statusOngoing: false`,
+ * ex.: "Jan/25 - Jul/25"). Cada item devolve também o lançamento bruto (`raw`)
+ * para permitir excluir da listagem genérica de receita (grupo "A") os
+ * lançamentos já exibidos no grupo "C", evitando duplicidade.
  */
 export function recurringDetailByMonth(
   lines: Array<Record<string, unknown>> | null | undefined,
@@ -556,33 +494,31 @@ export function recurringDetailByMonth(
     .map((l) => ({
       raw: l,
       month: ymIndex(l.yearMonth),
-      amountCents: Math.round(num(l.amount) * 100),
       source: sourceKey(l.description),
       amount: num(l.amount),
-      classification: String(l.classification || ''),
     }))
-    .filter((l) => l.month != null && l.amountCents > 0 && l.classification !== 'ENT' && l.classification !== 'ATIP');
+    .filter((l) => l.month != null && l.amount > 0 && isRecurringLine(l.raw));
 
-  const monthsByAmount = new Map<number, number[]>();
-  const monthsBySource = new Map<string, number[]>();
+  const monthsBySource = new Map<string, Set<number>>();
   candidates.forEach((l) => {
-    monthsByAmount.set(l.amountCents, [...(monthsByAmount.get(l.amountCents) || []), l.month as number]);
-    if (l.source) {
-      monthsBySource.set(l.source, [...(monthsBySource.get(l.source) || []), l.month as number]);
-    }
+    if (!l.source) return;
+    const months = monthsBySource.get(l.source) || new Set<number>();
+    months.add(l.month as number);
+    monthsBySource.set(l.source, months);
   });
 
   candidates.forEach((l) => {
     const month = l.month as number;
-    const byAmount = findRun(monthsByAmount.get(l.amountCents) || [], RECURRING_AMOUNT_MIN_MONTHS, month);
-    const bySource = l.source ? findRun(monthsBySource.get(l.source) || [], RECURRING_SOURCE_MIN_MONTHS, month) : null;
-    const run = pickPrimaryRun(byAmount, bySource);
-    if (!run) return;
-
-    const ongoing = run.end === latestMonth;
+    const sourceMonths = l.source
+      ? [...(monthsBySource.get(l.source) || new Set<number>())].sort((a, b) => a - b)
+      : [month];
+    const first = sourceMonths[0];
+    const last = sourceMonths[sourceMonths.length - 1];
+    const ongoing = last === latestMonth;
+    const count = sourceMonths.length;
     const statusLabel = ongoing
-      ? `${run.len} ${run.len === 1 ? 'mês' : 'meses'}`
-      : `${mesLabel(monthIndexToYm(run.start))} - ${mesLabel(monthIndexToYm(run.end))}`;
+      ? `${count} ${count === 1 ? 'mês' : 'meses'}`
+      : `${mesLabel(monthIndexToYm(first))} - ${mesLabel(monthIndexToYm(last))}`;
 
     const ym = monthIndexToYm(month);
     (result[ym] = result[ym] || []).push({
@@ -635,4 +571,261 @@ export function groupDetail(lines: Array<Record<string, unknown>> | null | undef
     });
   });
   return groups;
+}
+
+// ── Recomendação de crédito (multifator, configurável pelo analista) ──────────
+
+/**
+ * Critérios de aceite da empresa, ajustáveis na tela de análise. `rendaMinima`
+ * em reais/mês; `debitoRendaMax` como razão Débito/Renda (contrato do backend
+ * `debtToIncomeRatio`); `volatilidadeMax` como coeficiente de variação (0–1);
+ * `mesesRecorrentesMin` como quantidade mínima de meses com renda recorrente.
+ */
+export interface DecisionCriteria {
+  rendaMinima: number;
+  debitoRendaMax: number;
+  volatilidadeMax: number;
+  mesesRecorrentesMin: number;
+}
+
+export const DEFAULT_DECISION_CRITERIA: DecisionCriteria = {
+  rendaMinima: 1500,
+  debitoRendaMax: 3,
+  volatilidadeMax: 0.4,
+  mesesRecorrentesMin: 4,
+};
+
+export interface DecisionMetrics {
+  rendaVerificada: number | null;
+  debitoRenda: number | null;
+  volatilidade: number | null;
+  mesesRecorrentes: number | null;
+}
+
+export type DecisionLevel = 'aprovar' | 'revisar' | 'complementar';
+
+export interface DecisionCheck {
+  key: string;
+  label: string;
+  ok: boolean;
+  value: number | null;
+  threshold: number;
+  comparator: 'gte' | 'lte';
+  format: 'money' | 'multiple' | 'pct' | 'int';
+}
+
+export interface DecisionResult {
+  level: DecisionLevel;
+  incomeProven: boolean;
+  checks: DecisionCheck[];
+}
+
+function toNonNegativeNumber(value: unknown, fallback: number): number {
+  const n = typeof value === 'string' ? parseFloat(value) : Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
+/**
+ * Normaliza os critérios vindos do armazenamento local ou de formulário,
+ * preenchendo com os defaults qualquer campo ausente ou inválido, para que a
+ * avaliação nunca receba NaN/negativo.
+ */
+export function sanitizeDecisionCriteria(raw: Partial<DecisionCriteria> | null | undefined): DecisionCriteria {
+  const base = raw ?? {};
+  return {
+    rendaMinima: toNonNegativeNumber(base.rendaMinima, DEFAULT_DECISION_CRITERIA.rendaMinima),
+    debitoRendaMax: toNonNegativeNumber(base.debitoRendaMax, DEFAULT_DECISION_CRITERIA.debitoRendaMax),
+    volatilidadeMax: toNonNegativeNumber(base.volatilidadeMax, DEFAULT_DECISION_CRITERIA.volatilidadeMax),
+    mesesRecorrentesMin: Math.round(toNonNegativeNumber(base.mesesRecorrentesMin, DEFAULT_DECISION_CRITERIA.mesesRecorrentesMin)),
+  };
+}
+
+/**
+ * Avalia a recomendação de crédito a partir das métricas de renda verificada e
+ * dos critérios de aceite da empresa. Sem renda comprovável (renda verificada
+ * > 0 e meses recorrentes ≥ mínimo) a recomendação é sempre "complementar"; com
+ * renda comprovável, "aprovar" quando todos os critérios secundários passam e
+ * "revisar" quando algum falha. Fatores sem dado (null) não reprovam, evitando
+ * negar por ausência de informação.
+ */
+export function evaluateDecision(
+  metrics: DecisionMetrics,
+  criteriaRaw?: Partial<DecisionCriteria> | null,
+): DecisionResult {
+  const criteria = sanitizeDecisionCriteria(criteriaRaw);
+  const renda = metrics.rendaVerificada ?? 0;
+  const meses = metrics.mesesRecorrentes ?? 0;
+  const incomeProven = renda > 0 && meses >= criteria.mesesRecorrentesMin;
+
+  const checks: DecisionCheck[] = [
+    {
+      key: 'recorrencia',
+      label: 'Meses com renda recorrente',
+      ok: meses >= criteria.mesesRecorrentesMin,
+      value: meses,
+      threshold: criteria.mesesRecorrentesMin,
+      comparator: 'gte',
+      format: 'int',
+    },
+    {
+      key: 'renda',
+      label: 'Renda verificada mínima',
+      ok: renda >= criteria.rendaMinima,
+      value: metrics.rendaVerificada,
+      threshold: criteria.rendaMinima,
+      comparator: 'gte',
+      format: 'money',
+    },
+    {
+      key: 'debito',
+      label: 'Débito/Renda máximo',
+      ok: metrics.debitoRenda == null || metrics.debitoRenda <= criteria.debitoRendaMax,
+      value: metrics.debitoRenda,
+      threshold: criteria.debitoRendaMax,
+      comparator: 'lte',
+      format: 'multiple',
+    },
+    {
+      key: 'volatilidade',
+      label: 'Volatilidade máxima',
+      ok: metrics.volatilidade == null || metrics.volatilidade <= criteria.volatilidadeMax,
+      value: metrics.volatilidade,
+      threshold: criteria.volatilidadeMax,
+      comparator: 'lte',
+      format: 'pct',
+    },
+  ];
+
+  let level: DecisionLevel;
+  if (!incomeProven) {
+    level = 'complementar';
+  } else if (checks.every((c) => c.ok)) {
+    level = 'aprovar';
+  } else {
+    level = 'revisar';
+  }
+
+  return { level, incomeProven, checks };
+}
+
+// ── Tendência e perfil da renda verificada ───────────────────────────────────
+
+export type TendenciaRenda = 'crescente' | 'estavel' | 'decrescente';
+
+export interface TendenciaRendaResult {
+  tendencia: TendenciaRenda | null;
+  variacao: number | null;
+}
+
+/**
+ * Tendência retrospectiva da renda verificada: compara a média dos 3 últimos
+ * meses da janela com a média dos 3 meses imediatamente anteriores. A série é
+ * posicionada pelo intervalo `fromYearMonth`/`toYearMonth` do payload (fallback:
+ * primeiro/último mês com dados), preenchendo com zero os meses sem crédito —
+ * um mês sem renda pesa na tendência, não é ignorado. Variação acima de +10% →
+ * crescente; abaixo de −10% → decrescente; entre os dois → estável. Retorna
+ * null com menos de 6 meses na janela ou sem base de comparação. Não é projeção:
+ * indica direção recente para leitura do analista.
+ */
+export function computeTendenciaRenda(
+  income: {
+    months?: Array<Record<string, unknown>>;
+    fromYearMonth?: string;
+    toYearMonth?: string;
+  } | null | undefined,
+): TendenciaRendaResult {
+  const rows = (income?.months || [])
+    .map((mo) => ({ idx: ymIndex(mo.yearMonth), val: num(mo.validatedIncome) }))
+    .filter((r): r is { idx: number; val: number } => r.idx != null);
+  if (rows.length === 0) return { tendencia: null, variacao: null };
+
+  const minIdx = Math.min(...rows.map((r) => r.idx));
+  const maxIdx = Math.max(...rows.map((r) => r.idx));
+  const start = ymIndex(income?.fromYearMonth) ?? minIdx;
+  const end = ymIndex(income?.toYearMonth) ?? maxIdx;
+  if (end < start) return { tendencia: null, variacao: null };
+
+  const serie = new Array<number>(end - start + 1).fill(0);
+  rows.forEach((r) => {
+    if (r.idx >= start && r.idx <= end) serie[r.idx - start] += r.val;
+  });
+  if (serie.length < 6) return { tendencia: null, variacao: null };
+
+  const avg = (values: number[]) => values.reduce((a, v) => a + v, 0) / values.length;
+  const recente = avg(serie.slice(-3));
+  const anterior = avg(serie.slice(-6, -3));
+
+  if (anterior <= 0) {
+    return recente > 0
+      ? { tendencia: 'crescente', variacao: null }
+      : { tendencia: null, variacao: null };
+  }
+
+  const variacao = recente / anterior - 1;
+  const tendencia: TendenciaRenda = variacao > 0.1 ? 'crescente' : variacao < -0.1 ? 'decrescente' : 'estavel';
+  return { tendencia, variacao };
+}
+
+export type PerfilRenda = 'folha' | 'recorrente-pj' | 'variavel' | 'indeterminado';
+
+export interface PerfilRendaResult {
+  perfil: PerfilRenda;
+  label: string;
+  descricao: string;
+}
+
+const PERFIL_RENDA_VIEW: Record<PerfilRenda, Omit<PerfilRendaResult, 'perfil'>> = {
+  folha: {
+    label: 'Folha de pagamento',
+    descricao: 'Créditos recorrentes com indício de salário/folha — vínculo CLT provável.',
+  },
+  'recorrente-pj': {
+    label: 'Recorrente PJ',
+    descricao: 'Pagador recorrente pessoa jurídica sem indício de folha — prestação de serviço provável.',
+  },
+  variavel: {
+    label: 'Variável',
+    descricao: 'Renda recorrente apenas de pessoas físicas/PIX — renda variável ou informal provável.',
+  },
+  indeterminado: {
+    label: 'Indeterminado',
+    descricao: 'Sem renda recorrente classificada no período.',
+  },
+};
+
+const FOLHA_KEYWORDS = /\b(SALARIO|FOLHA|PROVENTO|PROVENTOS|REMUNERACAO|HOLERITE|PORTABILIDADE)\b/;
+
+function normalizeDescription(value: unknown): string {
+  return String(value || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
+/**
+ * Classifica o perfil da renda verificada a partir dos créditos que o backend
+ * marcou como recorrentes (`isRecurringLine`): 'folha' quando alguma descrição
+ * indica salário/folha; 'recorrente-pj' quando há pagador recorrente pessoa
+ * jurídica sem indício de folha; 'variavel' quando a renda recorrente vem só de
+ * pessoas físicas/PIX; 'indeterminado' sem renda recorrente. Heurística de
+ * apresentação para orientar o analista — não substitui verificação documental
+ * de vínculo empregatício.
+ */
+export function classifyPerfilRenda(
+  lines: Array<Record<string, unknown>> | null | undefined,
+): PerfilRendaResult {
+  const recorrentes = (lines || []).filter((l) => num(l.amount) > 0 && isRecurringLine(l));
+
+  let perfil: PerfilRenda;
+  if (recorrentes.length === 0) {
+    perfil = 'indeterminado';
+  } else if (recorrentes.some((l) => FOLHA_KEYWORDS.test(normalizeDescription(l.description)))) {
+    perfil = 'folha';
+  } else if (recorrentes.some((l) => String(l.personType || '').toUpperCase().includes('JURIDICA'))) {
+    perfil = 'recorrente-pj';
+  } else {
+    perfil = 'variavel';
+  }
+
+  return { perfil, ...PERFIL_RENDA_VIEW[perfil] };
 }

@@ -4,10 +4,15 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_DECISION_CRITERIA,
   POC_STATUS,
   QUEUE_ACTIONS,
+  classifyPerfilRenda,
   computeRecurringIncome,
+  computeRendaStats,
+  computeTendenciaRenda,
   confTone,
+  evaluateDecision,
   getConsentStartFromLinks,
   getPromotedStatus,
   getQueueBusinessRules,
@@ -19,6 +24,7 @@ import {
   receiptMethod,
   receitaTrimestral,
   recurringDetailByMonth,
+  sanitizeDecisionCriteria,
   sourceKey,
 } from './domain';
 
@@ -176,48 +182,29 @@ describe('sourceKey', () => {
 });
 
 describe('computeRecurringIncome', () => {
-  it('critério 1: mesmo valor em 2+ meses consecutivos é recorrente', () => {
+  it('soma os créditos classificados como recorrentes pelo backend (considered=true)', () => {
     const r = computeRecurringIncome([
-      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE A' },
-      { yearMonth: '2025-02', amount: 100, classification: 'NREC', description: 'PIX FONTE B' },
-      { yearMonth: '2025-04', amount: 100, classification: 'NREC', description: 'PIX FONTE C' },
+      { yearMonth: '2025-01', amount: 100, classification: 'REC', considered: true, description: 'SALARIO EMPRESA XYZ' },
+      { yearMonth: '2025-02', amount: 120, classification: 'PIX', considered: true, description: 'PIX EMPRESA XYZ' },
+      { yearMonth: '2025-02', amount: 500, classification: 'NREC', considered: false, description: 'VENDA AVULSA' },
     ]);
-    expect(r.total).toBe(200);
+    expect(r.total).toBe(220);
     expect(r.entryCount).toBe(2);
   });
 
-  it('critério 2: mesma fonte em 3+ meses consecutivos é recorrente mesmo com valores variáveis', () => {
+  it('sem o campo considered, usa a classificação REC/PIX', () => {
     const r = computeRecurringIncome([
-      { yearMonth: '2025-01', amount: 90, classification: 'NREC', description: 'PIX RECEBIDO EMPRESA XYZ' },
-      { yearMonth: '2025-02', amount: 110, classification: 'NREC', description: 'EMPRESA XYZ CRED PIX' },
-      { yearMonth: '2025-03', amount: 130, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
+      { yearMonth: '2025-01', amount: 100, classification: 'REC', description: 'SALARIO EMPRESA XYZ' },
+      { yearMonth: '2025-02', amount: 200, classification: 'NREC', description: 'VENDA AVULSA' },
     ]);
-    expect(r.total).toBe(330);
-    expect(r.entryCount).toBe(3);
-  });
-
-  it('mesma fonte em apenas 2 meses consecutivos com valores diferentes não é recorrente', () => {
-    const r = computeRecurringIncome([
-      { yearMonth: '2025-01', amount: 90, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
-      { yearMonth: '2025-02', amount: 110, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
-    ]);
-    expect(r.total).toBe(0);
-  });
-
-  it('mesmo valor em meses não consecutivos não é recorrente', () => {
-    const r = computeRecurringIncome([
-      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE A' },
-      { yearMonth: '2025-03', amount: 100, classification: 'NREC', description: 'PIX FONTE B' },
-    ]);
-    expect(r.total).toBe(0);
+    expect(r.total).toBe(100);
+    expect(r.entryCount).toBe(1);
   });
 
   it('ignora transferências entre contas e créditos atípicos', () => {
     const r = computeRecurringIncome([
-      { yearMonth: '2025-01', amount: 100, classification: 'ENT', description: 'TED MESMA TITULARIDADE' },
-      { yearMonth: '2025-02', amount: 100, classification: 'ENT', description: 'TED MESMA TITULARIDADE' },
-      { yearMonth: '2025-01', amount: 500, classification: 'ATIP', description: 'ESTORNO COMPRA' },
-      { yearMonth: '2025-02', amount: 500, classification: 'ATIP', description: 'ESTORNO COMPRA' },
+      { yearMonth: '2025-01', amount: 100, classification: 'ENT', considered: false, description: 'TED MESMA TITULARIDADE' },
+      { yearMonth: '2025-01', amount: 500, classification: 'ATIP', considered: false, description: 'ESTORNO COMPRA' },
     ]);
     expect(r.total).toBe(0);
   });
@@ -225,14 +212,6 @@ describe('computeRecurringIncome', () => {
   it('aceita lista vazia ou nula', () => {
     expect(computeRecurringIncome(null)).toEqual({ total: 0, entryCount: 0 });
     expect(computeRecurringIncome([])).toEqual({ total: 0, entryCount: 0 });
-  });
-
-  it('considera virada de ano como meses consecutivos', () => {
-    const r = computeRecurringIncome([
-      { yearMonth: '2024-12', amount: 100, classification: 'NREC', description: 'PIX FONTE A' },
-      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE B' },
-    ]);
-    expect(r.total).toBe(200);
   });
 });
 
@@ -263,13 +242,11 @@ describe('receitaTrimestral', () => {
 });
 
 describe('recurringDetailByMonth', () => {
-  it('renda recorrente ate o ultimo mes analisado fica com status N meses (ongoing)', () => {
-    const lines = [
-      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE A', date: '01/01' },
-      { yearMonth: '2025-02', amount: 100, classification: 'NREC', description: 'PIX FONTE B', date: '01/02' },
-      { yearMonth: '2025-03', amount: 100, classification: 'NREC', description: 'PIX FONTE C', date: '01/03' },
-      { yearMonth: '2025-04', amount: 100, classification: 'NREC', description: 'PIX FONTE D', date: '01/04' },
-    ];
+  it('pagador recorrente presente no ultimo mes analisado fica com status N meses (ongoing)', () => {
+    const lines = ['2025-01', '2025-02', '2025-03', '2025-04'].map((yearMonth, i) => ({
+      yearMonth, amount: 100 + i, classification: 'REC', considered: true,
+      description: 'SALARIO EMPRESA XYZ', date: `01/0${i + 1}`,
+    }));
     const mesesAnalisados = ['2025-01', '2025-02', '2025-03', '2025-04'].map((id) => ({ id }));
     const byMonth = recurringDetailByMonth(lines, mesesAnalisados);
     expect(byMonth['2025-04']).toHaveLength(1);
@@ -278,12 +255,12 @@ describe('recurringDetailByMonth', () => {
     expect(byMonth['2025-01'][0].statusLabel).toBe('4 meses');
   });
 
-  it('renda recorrente que termina antes do ultimo mes fica com status de periodo (nao ongoing)', () => {
+  it('pagador que deixa de creditar antes do ultimo mes fica com status de periodo (nao ongoing)', () => {
     const meses = ['2025-01', '2025-02', '2025-03', '2025-04', '2025-05', '2025-06'].map((id) => ({ id }));
     const lines = [
-      { yearMonth: '2025-01', amount: 90, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
-      { yearMonth: '2025-02', amount: 110, classification: 'NREC', description: 'EMPRESA XYZ CRED PIX' },
-      { yearMonth: '2025-03', amount: 130, classification: 'NREC', description: 'PIX EMPRESA XYZ' },
+      { yearMonth: '2025-01', amount: 90, classification: 'REC', considered: true, description: 'PIX EMPRESA XYZ' },
+      { yearMonth: '2025-02', amount: 110, classification: 'REC', considered: true, description: 'EMPRESA XYZ CRED PIX' },
+      { yearMonth: '2025-03', amount: 130, classification: 'REC', considered: true, description: 'PIX EMPRESA XYZ' },
     ];
     const byMonth = recurringDetailByMonth(lines, meses);
     expect(byMonth['2025-03'][0].statusOngoing).toBe(false);
@@ -291,12 +268,12 @@ describe('recurringDetailByMonth', () => {
     expect(byMonth['2025-04']).toBeUndefined();
   });
 
-  it('ignora lancamentos que nao atendem aos criterios de recorrencia ou sao ENT/ATIP', () => {
+  it('ignora lancamentos nao classificados como recorrentes pelo backend', () => {
     const meses = ['2025-01', '2025-02', '2025-03'].map((id) => ({ id }));
     const lines = [
-      { yearMonth: '2025-01', amount: 100, classification: 'NREC', description: 'PIX FONTE A' },
-      { yearMonth: '2025-03', amount: 100, classification: 'NREC', description: 'PIX FONTE B' },
-      { yearMonth: '2025-01', amount: 500, classification: 'ENT', description: 'TED MESMA TITULARIDADE' },
+      { yearMonth: '2025-01', amount: 100, classification: 'NREC', considered: false, description: 'PIX FONTE A' },
+      { yearMonth: '2025-03', amount: 100, classification: 'NREC', considered: false, description: 'PIX FONTE B' },
+      { yearMonth: '2025-01', amount: 500, classification: 'ENT', considered: false, description: 'TED MESMA TITULARIDADE' },
     ];
     const byMonth = recurringDetailByMonth(lines, meses);
     expect(byMonth['2025-01']).toBeUndefined();
@@ -310,7 +287,7 @@ describe('recurringDetailByMonth', () => {
   });
 
   it('retorna vazio quando nao ha meses analisados', () => {
-    expect(recurringDetailByMonth([{ yearMonth: '2025-01', amount: 100, description: 'PIX' }], [])).toEqual({});
+    expect(recurringDetailByMonth([{ yearMonth: '2025-01', amount: 100, classification: 'REC', description: 'PIX' }], [])).toEqual({});
   });
 });
 
@@ -321,6 +298,124 @@ describe('confTone', () => {
     expect(confTone('Media')).toBe('warning');
     expect(confTone('Baixa')).toBe('danger');
     expect(confTone(undefined)).toBe('danger');
+  });
+});
+
+describe('sanitizeDecisionCriteria', () => {
+  it('mantém valores válidos e arredonda meses recorrentes', () => {
+    const c = sanitizeDecisionCriteria({ rendaMinima: 2000, debitoRendaMax: 2.5, volatilidadeMax: 0.3, mesesRecorrentesMin: 5.6 });
+    expect(c).toEqual({ rendaMinima: 2000, debitoRendaMax: 2.5, volatilidadeMax: 0.3, mesesRecorrentesMin: 6 });
+  });
+
+  it('preenche campos ausentes, negativos ou não numéricos com os defaults', () => {
+    expect(sanitizeDecisionCriteria(null)).toEqual(DEFAULT_DECISION_CRITERIA);
+    const c = sanitizeDecisionCriteria({ rendaMinima: -1, debitoRendaMax: Number.NaN, volatilidadeMax: undefined });
+    expect(c.rendaMinima).toBe(DEFAULT_DECISION_CRITERIA.rendaMinima);
+    expect(c.debitoRendaMax).toBe(DEFAULT_DECISION_CRITERIA.debitoRendaMax);
+    expect(c.volatilidadeMax).toBe(DEFAULT_DECISION_CRITERIA.volatilidadeMax);
+  });
+
+  it('aceita critérios em string vindos de formulário', () => {
+    const c = sanitizeDecisionCriteria({ rendaMinima: '2500' as unknown as number, mesesRecorrentesMin: '3' as unknown as number });
+    expect(c.rendaMinima).toBe(2500);
+    expect(c.mesesRecorrentesMin).toBe(3);
+  });
+});
+
+describe('evaluateDecision', () => {
+  const criteria = { rendaMinima: 1500, debitoRendaMax: 3, volatilidadeMax: 0.4, mesesRecorrentesMin: 4 };
+
+  it('sem renda comprovável recomenda complementar', () => {
+    const r = evaluateDecision({ rendaVerificada: 0, debitoRenda: 0.5, volatilidade: 0.1, mesesRecorrentes: 0 }, criteria);
+    expect(r.level).toBe('complementar');
+    expect(r.incomeProven).toBe(false);
+  });
+
+  it('poucos meses recorrentes recomenda complementar mesmo com renda alta', () => {
+    const r = evaluateDecision({ rendaVerificada: 8000, debitoRenda: 1, volatilidade: 0.1, mesesRecorrentes: 3 }, criteria);
+    expect(r.level).toBe('complementar');
+  });
+
+  it('renda comprovável dentro de todos os critérios recomenda aprovar', () => {
+    const r = evaluateDecision({ rendaVerificada: 3000, debitoRenda: 2, volatilidade: 0.2, mesesRecorrentes: 6 }, criteria);
+    expect(r.level).toBe('aprovar');
+    expect(r.checks.every((c) => c.ok)).toBe(true);
+  });
+
+  it('renda comprovável fora de um critério secundário recomenda revisar', () => {
+    const alto = evaluateDecision({ rendaVerificada: 3000, debitoRenda: 5, volatilidade: 0.2, mesesRecorrentes: 6 }, criteria);
+    expect(alto.level).toBe('revisar');
+    const baixa = evaluateDecision({ rendaVerificada: 800, debitoRenda: 1, volatilidade: 0.2, mesesRecorrentes: 6 }, criteria);
+    expect(baixa.level).toBe('revisar');
+  });
+
+  it('fatores sem dado (null) não reprovam a comprovação', () => {
+    const r = evaluateDecision({ rendaVerificada: 3000, debitoRenda: null, volatilidade: null, mesesRecorrentes: 6 }, criteria);
+    expect(r.level).toBe('aprovar');
+  });
+
+  it('usa os defaults quando nenhum critério é informado', () => {
+    const r = evaluateDecision({ rendaVerificada: 3000, debitoRenda: 2, volatilidade: 0.2, mesesRecorrentes: 6 });
+    expect(r.level).toBe('aprovar');
+  });
+});
+
+describe('computeRendaStats', () => {
+  const month = (yearMonth: string, validatedIncome: number) => ({
+    yearMonth,
+    recurring: validatedIncome,
+    pixRecurring: 0,
+    betweenAccounts: 0,
+    nonRecurring: 0,
+    atypical: 0,
+    totalCredits: validatedIncome,
+    validatedIncome,
+    confidence: 'Alta',
+  });
+
+  it('calcula média 12m e volatilidade sobre a renda verificada', () => {
+    const income = {
+      months: [month('2026-01', 3000), month('2026-02', 3000), month('2026-03', 3000)],
+      summary: { monthsAnalyzed: 3 },
+    };
+    const r = computeRendaStats(income);
+    expect(r.media12m).toBe(3000);
+    expect(r.volatilidade).toBe(0);
+  });
+
+  it('completa com zeros os meses ausentes da janela analisada', () => {
+    const income = {
+      months: [month('2026-05', 4000), month('2026-06', 4000)],
+      summary: { monthsAnalyzed: 4 },
+    };
+    const r = computeRendaStats(income);
+    expect(r.media12m).toBe(2000);
+    expect(r.volatilidade).toBeCloseTo(1, 5);
+  });
+
+  it('meses com renda zero contam como instabilidade, não são filtrados', () => {
+    const estavel = computeRendaStats({
+      months: [month('2026-01', 5000), month('2026-02', 5000)],
+      summary: { monthsAnalyzed: 2 },
+    });
+    const intermitente = computeRendaStats({
+      months: [month('2026-01', 5000), month('2026-02', 0), month('2026-03', 5000), month('2026-04', 0)],
+      summary: { monthsAnalyzed: 4 },
+    });
+    expect(estavel.volatilidade).toBe(0);
+    expect(intermitente.volatilidade).toBeGreaterThan(0.5);
+  });
+
+  it('retorna null sem dados ou com renda toda zerada', () => {
+    expect(computeRendaStats(null)).toEqual({ media12m: null, volatilidade: null });
+    expect(computeRendaStats({ months: [], summary: { monthsAnalyzed: 0 } }))
+      .toEqual({ media12m: null, volatilidade: null });
+    const zerada = computeRendaStats({
+      months: [month('2026-01', 0), month('2026-02', 0)],
+      summary: { monthsAnalyzed: 2 },
+    });
+    expect(zerada.media12m).toBe(0);
+    expect(zerada.volatilidade).toBeNull();
   });
 });
 
@@ -346,5 +441,109 @@ describe('getConsentStartFromLinks', () => {
     expect(getConsentStartFromLinks([])).toBeNull();
     expect(getConsentStartFromLinks([{ linkId: 'a', status: 'ACTIVE' }])).toBeNull();
     expect(getConsentStartFromLinks([{ linkId: 'a', status: 'ACTIVE', connectedAt: 'data-invalida' }])).toBeNull();
+  });
+});
+
+describe('computeTendenciaRenda', () => {
+  const month = (yearMonth: string, validatedIncome: number) => ({ yearMonth, validatedIncome });
+
+  it('renda subindo mais de 10% é crescente', () => {
+    const income = {
+      fromYearMonth: '2026-01',
+      toYearMonth: '2026-06',
+      months: [
+        month('2026-01', 2000), month('2026-02', 2000), month('2026-03', 2000),
+        month('2026-04', 3000), month('2026-05', 3000), month('2026-06', 3000),
+      ],
+    };
+    const r = computeTendenciaRenda(income);
+    expect(r.tendencia).toBe('crescente');
+    expect(r.variacao).toBeCloseTo(0.5, 5);
+  });
+
+  it('variação dentro de ±10% é estável', () => {
+    const income = {
+      fromYearMonth: '2026-01',
+      toYearMonth: '2026-06',
+      months: [
+        month('2026-01', 3000), month('2026-02', 3000), month('2026-03', 3000),
+        month('2026-04', 3100), month('2026-05', 2900), month('2026-06', 3000),
+      ],
+    };
+    expect(computeTendenciaRenda(income).tendencia).toBe('estavel');
+  });
+
+  it('meses ausentes na janela contam como zero e derrubam a tendência', () => {
+    const income = {
+      fromYearMonth: '2026-01',
+      toYearMonth: '2026-06',
+      months: [
+        month('2026-01', 3000), month('2026-02', 3000), month('2026-03', 3000),
+        month('2026-04', 3000),
+      ],
+    };
+    const r = computeTendenciaRenda(income);
+    expect(r.tendencia).toBe('decrescente');
+    expect(r.variacao).toBeCloseTo(-2 / 3, 5);
+  });
+
+  it('sem base de comparação, renda nova é crescente sem variação numérica', () => {
+    const income = {
+      fromYearMonth: '2026-01',
+      toYearMonth: '2026-06',
+      months: [month('2026-04', 3000), month('2026-05', 3000), month('2026-06', 3000)],
+    };
+    const r = computeTendenciaRenda(income);
+    expect(r.tendencia).toBe('crescente');
+    expect(r.variacao).toBeNull();
+  });
+
+  it('retorna null com menos de 6 meses na janela ou sem dados', () => {
+    expect(computeTendenciaRenda(null).tendencia).toBeNull();
+    expect(computeTendenciaRenda({ months: [] }).tendencia).toBeNull();
+    const curta = {
+      fromYearMonth: '2026-03',
+      toYearMonth: '2026-06',
+      months: [month('2026-03', 3000), month('2026-06', 3000)],
+    };
+    expect(computeTendenciaRenda(curta).tendencia).toBeNull();
+  });
+});
+
+describe('classifyPerfilRenda', () => {
+  it('descrição com indício de salário/folha classifica como folha', () => {
+    const r = classifyPerfilRenda([
+      { amount: 3000, classification: 'REC', considered: true, description: 'SALÁRIO EMPRESA XYZ', personType: 'PESSOA_JURIDICA' },
+    ]);
+    expect(r.perfil).toBe('folha');
+  });
+
+  it('pagador recorrente PJ sem indício de folha classifica como recorrente-pj', () => {
+    const r = classifyPerfilRenda([
+      { amount: 5000, classification: 'REC', considered: true, description: 'PIX EMPRESA XYZ LTDA', personType: 'PESSOA_JURIDICA' },
+    ]);
+    expect(r.perfil).toBe('recorrente-pj');
+  });
+
+  it('renda recorrente só de pessoa física classifica como variavel', () => {
+    const r = classifyPerfilRenda([
+      { amount: 800, classification: 'PIX', considered: true, description: 'PIX JOAO DA SILVA', personType: 'PESSOA_NATURAL' },
+    ]);
+    expect(r.perfil).toBe('variavel');
+  });
+
+  it('sem créditos recorrentes classifica como indeterminado', () => {
+    expect(classifyPerfilRenda(null).perfil).toBe('indeterminado');
+    expect(classifyPerfilRenda([
+      { amount: 900, classification: 'NREC', considered: false, description: 'VENDA AVULSA', personType: 'PESSOA_NATURAL' },
+    ]).perfil).toBe('indeterminado');
+  });
+
+  it('linhas não recorrentes não influenciam a classificação', () => {
+    const r = classifyPerfilRenda([
+      { amount: 800, classification: 'PIX', considered: true, description: 'PIX JOAO DA SILVA', personType: 'PESSOA_NATURAL' },
+      { amount: 9000, classification: 'NREC', considered: false, description: 'SALARIO EMPRESA XYZ', personType: 'PESSOA_JURIDICA' },
+    ]);
+    expect(r.perfil).toBe('variavel');
   });
 });

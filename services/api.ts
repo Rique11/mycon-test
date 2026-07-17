@@ -38,6 +38,21 @@ export interface ClientResponse {
   [key: string]: unknown;
 }
 
+/**
+ * Contrato de GET /clients/{id}/insights, confirmado no backend
+ * (ClientController.buildInsights):
+ * - avgMonthlyIncome3m: mediana da renda validada dos últimos 6 meses
+ *   (base "incomeSemester" — apesar do nome, é mediana semestral, não média 3m);
+ * - avgMonthlyIncome12m: mediana da renda validada na janela de 12 meses;
+ * - debtToIncomeRatio: totalLiabilities ÷ mediana da renda validada 6m
+ *   (null quando a renda é zero) — razão de estoque (saldo devedor), não de
+ *   fluxo (parcela/renda);
+ * - totalLiabilities: saldo devedor total em BRL dos contratos ativos de
+ *   empréstimo/financiamento (LoanInsightsService);
+ * - savingsCapacity3m: mediana da renda validada 6m − despesa média mensal 3m;
+ * - avgMonthlySpend3m: despesa média mensal (DEBITO) dos últimos 3 meses;
+ * - incomeDetected: mediana da renda validada > 0.
+ */
 export interface ClientInsightsResponse {
   avgMonthlyIncome3m?: number | null;
   avgMonthlyIncome12m?: number | null;
@@ -302,6 +317,9 @@ export const clientsApi = {
 
   getInsights: (id: string, signal?: AbortSignal) =>
     request<ClientInsightsResponse>(`/api/v1/clients/${id}/insights`, { signal }),
+
+  getLoanInsights: (id: string, signal?: AbortSignal) =>
+    request(`/api/v1/clients/${id}/insights/loans`, { signal }),
 
   getCategoryBreakdown: (id: string, params?: QueryParams, signal?: AbortSignal) =>
     request(`/api/v1/clients/${id}/category-breakdown`, { query: params, signal }),

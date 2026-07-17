@@ -14,7 +14,7 @@ import EvidKpi from '../EvidKpi.jsx';
 import { clientsApi } from '../../services/api';
 import { exportConsolidado } from '../../services/exportExcel.js';
 import { exportExtratoPdf } from '../../services/exportPdf.js';
-import { PRODUCT_LABELS, getQueueBusinessRules, getStatusMeta, computeReceitaStats, getConsentGeneratedAt, getConsentStartFromLinks, hasReadyEvidence } from '../../services/domain';
+import { PRODUCT_LABELS, getQueueBusinessRules, getStatusMeta, computeRendaStats, getConsentGeneratedAt, getConsentStartFromLinks, hasReadyEvidence } from '../../services/domain';
 import { maskCpf, fmtBRL } from '../../lib/format';
 import { resolveClientForCase } from '../../services/clientResolution.js';
 import { useCaseEvidence, deriveAccountTags, deriveInstitutions } from '../../hooks/useCaseEvidence.js';
@@ -336,7 +336,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
   const collection = getEffectiveCollectionInfo(caseItem, evidence);
   const output = getEffectiveOutputInfo(caseItem, meta, evidence, evidenceState.loading);
   const evidenceHash = getEvidenceHash(caseItem, evidence);
-  const receita = React.useMemo(() => computeReceitaStats(evidence?.income), [evidence]);
+  const renda = React.useMemo(() => computeRendaStats(evidence?.income), [evidence]);
   const accountTags = React.useMemo(() => deriveAccountTags(caseItem, evidence), [caseItem, evidence]);
   const institutions = React.useMemo(() => deriveInstitutions(caseItem, evidence), [caseItem, evidence]);
 
@@ -384,7 +384,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
     setOpenClientError('');
     try {
       const { id: resolvedId } = await resolveClientForCase(caseItem);
-      onSelectClient?.(resolvedId);
+      onSelectClient?.(resolvedId, caseItem);
       return;
     } catch (error) {
       setOpenClientError(error.code === 'ambiguous'
@@ -574,16 +574,16 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
             <DrawerField label="Contemplação" value={formatDate(caseItem.contemplationDate)} />
               {consent.tone === 'success' && (
                 <>
-                  <EvidKpi label="Receita anual" value={receita.media12m != null ? fmtBRL(receita.media12m) : '—'} sub="Média mensal (12m)" mono
-                    info="Média mensal da receita (exceto transferências entre contas) no período analisado (até 12 meses)." />
+                  <EvidKpi label="Renda verificada (12m)" value={renda.media12m != null ? fmtBRL(renda.media12m) : '—'} sub="Média mensal recorrente" mono
+                    info="Média mensal da renda verificada (créditos de pagadores recorrentes) no período analisado (até 12 meses), mesma base da tela de análise." />
                   <EvidKpi label="Volatilidade"
-                    value={receita.volatilidade != null ? `${(receita.volatilidade * 100).toFixed(0)}%` : '—'}
-                    sub={receita.volatilidade == null ? 'Sem dado no período'
-                      : receita.volatilidade <= 0.25 ? 'Oscilação baixa'
-                      : receita.volatilidade <= 0.5 ? 'Oscilação moderada'
+                    value={renda.volatilidade != null ? `${(renda.volatilidade * 100).toFixed(0)}%` : '—'}
+                    sub={renda.volatilidade == null ? 'Sem dado no período'
+                      : renda.volatilidade <= 0.25 ? 'Oscilação baixa'
+                      : renda.volatilidade <= 0.5 ? 'Oscilação moderada'
                       : 'Oscilação alta'}
                     mono
-                    info="Quanto a receita mensal (exceto transferências entre contas) oscilou no período analisado: desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a receita." />
+                    info="Quanto a renda verificada mensal oscilou na janela analisada (meses sem renda recorrente contam como zero): desvio padrão dividido pela média (coeficiente de variação). Quanto maior o percentual, mais instável a renda." />
                 </>
               )}
             </div>

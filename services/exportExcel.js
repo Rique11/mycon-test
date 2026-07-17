@@ -387,7 +387,10 @@ function appendResumoV0(ws, startRow, { client, caseItem, insights, income, stat
   const rendaValidada = validadas.length ? avg(validadas) : null;
   const mesesRendaValida = validadas.length;
 
-  const renda = [num(insights?.avgMonthlyIncome12m), rendaValidada, receitaMedia]
+  // Renda verificada = mediana mensal recorrente calculada pelo backend
+  // (summary.validatedIncomeAvg), alinhada à aba de Auditoria e à tela de análise.
+  const rendaVerificadaMediana = num(income?.summary?.validatedIncomeAvg);
+  const renda = [rendaVerificadaMediana, rendaValidada, num(insights?.avgMonthlyIncome12m), receitaMedia]
     .find((v) => v != null && Number.isFinite(v) && v > 0) ?? 0;
   const gasto = num(insights?.avgMonthlySpend3m) ?? 0;
 
@@ -426,7 +429,7 @@ function appendResumoV0(ws, startRow, { client, caseItem, insights, income, stat
   const sections = [
     ['CAPACIDADE & FLUXO DE CAIXA', [
       ['Renda recorrente verificada', moneyStr(renda),
-        `Calculada com dados OF. Base V0 prioriza renda 12m do insight, renda mensal validada e receita sem transferências entre contas (${mesesRecebidos} meses).`],
+        `Renda verificada = mediana mensal dos créditos de pagadores recorrentes (≥4 meses), excluindo transferências entre contas e atípicos. Base OF, ${mesesRecebidos} meses.`],
       ['(-) Gasto observado', moneyStr(gasto),
         'Usa despesa média mensal 3m retornada pelo backend.'],
       ['(-) Parcela do consórcio', parcelaPendente ? 'Pendente fonte Mycon' : moneyStr(parcela),
@@ -486,7 +489,7 @@ function appendResumoV0(ws, startRow, { client, caseItem, insights, income, stat
     ]],
     ['MEMÓRIA DE CÁLCULO - V0', [
       ['Renda', 'Calculada',
-        'Usa renda 12m do insight quando disponível; caso contrário, renda validada mensal ou receita OF sem transferências entre contas.'],
+        'Prioriza a mediana mensal recorrente (renda verificada) do backend; na ausência, usa renda validada mensal, renda 12m do insight ou receita OF sem transferências entre contas.'],
       ['Gasto e fluxo', 'Calculado',
         'Gasto usa insight 3m ou saídas do extrato. Fluxo usa entradas menos saídas por mês em `statement.rows`.'],
       ['Parcela e comprometimento', 'Parcial',
@@ -566,21 +569,18 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, statement, d
   const incomeMonths = income?.months || [];
   const mesesRecebidos = income?.summary?.monthsAnalyzed || incomeMonths.length;
   const totalEntradas12m = sum(incomeMonths.map((m) => num(m.totalCredits) ?? 0));
-  const totalReceita12m = sum(incomeMonths.map((m) => Math.max(0, (num(m.totalCredits) ?? 0) - (num(m.betweenAccounts) ?? 0))));
+  const rendaVerificadaMediana = num(income?.summary?.validatedIncomeAvg);
   kpiCard(ws, r, 1, {
     label: 'Total de entradas (12m)',
     value: totalEntradas12m,
     fmt: FMT.cur0,
     subtext: 'Soma de todas as entradas dos 12 meses analisados, incluindo transferências entre contas.',
   });
-  const receitaMedia = mesesRecebidos
-    ? totalReceita12m / mesesRecebidos
-    : null;
   kpiCard(ws, r, 3, {
-    label: 'Receita média (12m)',
-    value: num(receitaMedia),
+    label: 'Renda verificada (mediana)',
+    value: rendaVerificadaMediana,
     fmt: FMT.cur0,
-    subtext: 'Receita (exceto transferências entre contas) dividida pelos meses recebidos.',
+    subtext: 'Mediana mensal dos créditos de pagadores recorrentes (≥4 meses), exceto transferências entre contas e atípicos.',
   });
   kpiCard(ws, r, 5, {
     label: 'Despesa média mensal (3m)',
