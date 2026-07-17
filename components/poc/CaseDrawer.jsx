@@ -314,6 +314,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
   const [drawerMessage, setDrawerMessage] = React.useState('');
   const [copyLabel, setCopyLabel] = React.useState('Copiar');
   const [generatingLink, setGeneratingLink] = React.useState(false);
+  const [addingInstitution, setAddingInstitution] = React.useState(false);
   const [exporting, setExporting] = React.useState('');
   const messageTimerRef = React.useRef(null);
   const copyTimerRef = React.useRef(null);
@@ -446,6 +447,43 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
       showMessage('Nao foi possivel gerar novo link agora.');
     } finally {
       setGeneratingLink(false);
+    }
+  }
+
+  async function handleAddInstitution() {
+    setAddingInstitution(true);
+    setDrawerMessage('');
+    try {
+      const { id, fallback } = await getRealOrFallbackClient();
+      if (fallback || !id) {
+        showMessage('Cliente nao encontrado na aba Clientes para gerar link de nova instituicao.');
+        return;
+      }
+
+      const result = await clientsApi.getConsentLink(id);
+      const consentLink = result?.consentLink || result?.url || result?.link || '';
+      const now = new Date();
+      const expiresAt = result?.expiresAt
+        || result?.consentExpiresAt
+        || result?.consent?.expiresAt
+        || null;
+      onUpdateCase?.(caseItem.id, {
+        consentLink,
+        consent: result?.consent || caseItem.consent,
+        consentCreatedAt: now.toISOString(),
+        consentExpiresAt: expiresAt,
+        events: appendCaseEvent(caseItem, 'Novo link gerado para adicionar instituicao', 'Akropoli'),
+      });
+      if (consentLink) await copyText(consentLink);
+      showMessage(consentLink
+        ? 'Link para nova instituicao gerado e copiado.'
+        : 'Convite gerado, mas a API nao retornou link.');
+    } catch (error) {
+      showMessage(error.code === 'ambiguous'
+        ? error.message
+        : 'Nao foi possivel gerar o link de nova instituicao agora.');
+    } finally {
+      setAddingInstitution(false);
     }
   }
 
@@ -626,6 +664,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
               {accountTags.length
                 ? accountTags.map((item) => <AccountTag key={`${item.bank}-${item.label}`} {...item} />)
                 : <span style={{ color: TOKENS.textSubtle, fontSize: 12.5 }}>Nenhuma conta considerada ate o momento.</span>}
+              <AddInstitutionTag onClick={handleAddInstitution} loading={addingInstitution} />
             </div>
           </DrawerSection>
 
@@ -775,6 +814,53 @@ function AccountTag({ bank, label, tone }) {
         whiteSpace: 'nowrap',
       }}>{label}</span>
     </div>
+  );
+}
+
+function AddInstitutionTag({ onClick, loading }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        width: '100%',
+        fontFamily: 'inherit',
+        textAlign: 'left',
+        border: `1px dashed ${TOKENS.primarySoftBorder}`,
+        background: TOKENS.primarySoft,
+        borderRadius: 10,
+        padding: '10px 11px',
+        cursor: loading ? 'progress' : 'pointer',
+        opacity: loading ? 0.7 : 1,
+      }}
+    >
+      <span style={{
+        width: 30,
+        height: 30,
+        borderRadius: 8,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: TOKENS.surface,
+        border: `1px solid ${TOKENS.primarySoftBorder}`,
+        color: TOKENS.primary,
+        flexShrink: 0,
+      }}>
+        <Icon d={I.plus} size={16} stroke="currentColor" strokeWidth={2} />
+      </span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', color: TOKENS.primary, fontSize: 13, fontWeight: 750 }}>
+          {loading ? 'Gerando link...' : 'Adicionar nova instituição'}
+        </span>
+        <span style={{ display: 'block', color: TOKENS.textMuted, fontSize: 11.5, marginTop: 2 }}>
+          Gera um link Open Finance para conectar outro banco
+        </span>
+      </span>
+    </button>
   );
 }
 
