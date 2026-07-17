@@ -308,6 +308,7 @@ export interface MonthComposition {
   pixTotal: number;
   avgEntry: number;
   maxEntry: number;
+  parcial: boolean;
 }
 
 /**
@@ -336,6 +337,7 @@ export function mapMonth(mo: Record<string, unknown>, lines: Array<Record<string
     nrec: num(mo.nonRecurring), atip: num(mo.atypical),
     total, receita: Math.max(0, total - betweenAccounts), val: num(mo.validatedIncome),
     conf: String(mo.confidence || 'Baixa'),
+    parcial: isMesCorrente(String(mo.yearMonth)),
     entryCount, pixTotal,
     avgEntry: entryCount > 0 ? total / entryCount : 0,
     maxEntry,
@@ -359,7 +361,7 @@ export interface RendaStats {
 export function computeRendaStats(
   income: { months?: Array<Record<string, unknown>>; summary?: { monthsAnalyzed?: number } } | null | undefined,
 ): RendaStats {
-  const meses = (income?.months || []).map((mo) => mapMonth(mo));
+  const meses = (income?.months || []).map((mo) => mapMonth(mo)).filter((m) => !m.parcial);
   const mesesAnalisados = income?.summary?.monthsAnalyzed || meses.length;
   const serie = meses.map((m) => m.val);
   while (serie.length < mesesAnalisados) serie.push(0);
@@ -745,7 +747,8 @@ export function computeTendenciaRenda(
   const minIdx = Math.min(...rows.map((r) => r.idx));
   const maxIdx = Math.max(...rows.map((r) => r.idx));
   const start = ymIndex(income?.fromYearMonth) ?? minIdx;
-  const end = ymIndex(income?.toYearMonth) ?? maxIdx;
+  const endRaw = ymIndex(income?.toYearMonth) ?? maxIdx;
+  const end = isMesCorrente(income?.toYearMonth) ? endRaw - 1 : endRaw;
   if (end < start) return { tendencia: null, variacao: null };
 
   const serie = new Array<number>(end - start + 1).fill(0);

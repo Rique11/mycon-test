@@ -26,7 +26,7 @@ import { confTone, mapMonth, groupDetail, computeRecurringIncome, receitaTrimest
 
 export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
   const { logout } = useAuth();
-  const { data, loading, error, retry } = useIncomeComposition(clientId);
+  const { data, loading, error, retry } = useIncomeComposition(clientId, statementWindow());
   const { data: clientData, loading: clientLoading } = useClientData(clientId);
   const [exportError, setExportError] = React.useState(null);
 
@@ -208,7 +208,7 @@ function ResumoComposicao({ meses, summary, detail, insights }) {
   const sum = (k) => meses.reduce((a, m) => a + m[k], 0);
   const mesesRecebidos = summary.monthsAnalyzed || meses.length || 1;
   const rendaRecorrente = React.useMemo(() => computeRecurringIncome(detail), [detail]);
-  const trimestre = React.useMemo(() => receitaTrimestral(meses), [meses]);
+  const trimestre = React.useMemo(() => receitaTrimestral(meses.filter((m) => !m.parcial)), [meses]);
   const patrimonioInvestido = insights?.totalAssets != null ? parseFloat(insights.totalAssets) : null;
   // Ordem de exibição definida pelo produto: 1, 8, 7, 6, 4, 5, 2, 3
   const items = [
@@ -340,7 +340,7 @@ function CompMensal({ meses, recurringByMonth }) {
               <tbody>
                 {meses.map((m) => (
                   <tr key={m.id} className="lz-row-hover lz-row-zebra" style={{ borderBottom: `1px solid ${TOKENS.border}` }}>
-                    <td style={{ padding: '12px 14px', fontWeight: 600, color: TOKENS.text }}>{m.label}</td>
+                    <td style={{ padding: '12px 14px', fontWeight: 600, color: TOKENS.text }}>{m.parcial ? `${m.label} (parcial)` : m.label}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.text }}>{fmt(m.total)}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: TOKENS.textMuted }}>{fmt(m.ent)}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>

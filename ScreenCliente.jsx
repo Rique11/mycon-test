@@ -103,7 +103,7 @@ export default function ScreenCliente({
 }) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useClientData(clientId);
-  const { data: incomeData, loading: incomeLoading, retry: retryIncome } = useIncomeComposition(clientId);
+  const { data: incomeData, loading: incomeLoading, retry: retryIncome } = useIncomeComposition(clientId, statementWindow());
   const { data: loanData, loading: loanLoading } = useLoanInsights(clientId);
   const [exportError, setExportError] = React.useState(null);
   const [criteria, setCriteria] = React.useState(loadCriteria);
@@ -153,7 +153,7 @@ export default function ScreenCliente({
   const mesesIncome = (incomeData?.months || [])
     .map((mo) => mapMonth(mo))
     .sort((a, b) => a.id.localeCompare(b.id));
-  const mesesAnalisados = summary.monthsAnalyzed || mesesIncome.length;
+  const mesesAnalisados = summary.monthsAnalyzed || mesesIncome.filter((m) => !m.parcial).length;
 
   // Renda verificada = mediana mensal de pagadores recorrentes (backend
   // IncomeCompositionService). Fonte primária: summary.validatedIncomeAvg.
@@ -161,7 +161,7 @@ export default function ScreenCliente({
   const rendaDetectada = summary.incomeDetected != null ? !!summary.incomeDetected : rendaVerificada > 0;
   const mesesRecorrentes = summary.recurringMonths != null
     ? summary.recurringMonths
-    : mesesIncome.filter((m) => m.val > 0).length;
+    : mesesIncome.filter((m) => !m.parcial && m.val > 0).length;
 
   // Renda verificada por mês (validatedIncome), base das médias e do gráfico.
   // Média 12m e volatilidade vêm de computeRendaStats (janela analisada
@@ -169,19 +169,19 @@ export default function ScreenCliente({
   const { media12m: rendaVerificada12m, volatilidade } = computeRendaStats(incomeData);
   const tendencia = computeTendenciaRenda(incomeData);
   const perfilRenda = classifyPerfilRenda(incomeData?.detail);
-  const ultimos3Val = mesesIncome.slice(-3).map((m) => m.val);
+  const ultimos3Val = mesesIncome.filter((m) => !m.parcial).slice(-3).map((m) => m.val);
   const rendaVerificada3m = ultimos3Val.length > 0
     ? ultimos3Val.reduce((a, v) => a + v, 0) / ultimos3Val.length
     : null;
 
   // Entradas totais (exceto transferências entre contas) — evidência de fluxo,
   // exibida separada da renda verificada; não é renda comprovável.
-  const ultimos3Entradas = mesesIncome.slice(-3).map((m) => m.receita);
+  const ultimos3Entradas = mesesIncome.filter((m) => !m.parcial).slice(-3).map((m) => m.receita);
   const entradas3m = ultimos3Entradas.length > 0
     ? ultimos3Entradas.reduce((a, v) => a + v, 0) / ultimos3Entradas.length
     : null;
   const entradas12m = mesesAnalisados > 0
-    ? mesesIncome.reduce((a, m) => a + m.receita, 0) / mesesAnalisados
+    ? mesesIncome.filter((m) => !m.parcial).reduce((a, m) => a + m.receita, 0) / mesesAnalisados
     : null;
 
   // Débito/Renda e capacidade de poupança vêm direto do backend (base única),
@@ -231,7 +231,7 @@ export default function ScreenCliente({
     email: client.email || '—',
   };
 
-  const mesesRenda = mesesIncome.slice(-12).map((m) => ({ m: m.label.toLowerCase(), v: m.val }));
+  const mesesRenda = mesesIncome.slice(-12).map((m) => ({ m: m.parcial ? `${m.label.toLowerCase()} · parcial` : m.label.toLowerCase(), v: m.val }));
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>

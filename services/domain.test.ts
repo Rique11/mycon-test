@@ -568,3 +568,22 @@ describe('isMesCorrente', () => {
     expect(isMesCorrente(undefined, now)).toBe(false);
   });
 });
+
+describe('mês corrente parcial na composição', () => {
+  const now = new Date();
+  const ymCorrente = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  it('mapMonth marca o mês corrente como parcial', () => {
+    expect(mapMonth({ yearMonth: ymCorrente, totalCredits: 10 }).parcial).toBe(true);
+    expect(mapMonth({ yearMonth: '2020-01', totalCredits: 10 }).parcial).toBe(false);
+  });
+
+  it('computeRendaStats ignora o mês corrente parcial', () => {
+    const base = { months: [{ yearMonth: '2025-01', validatedIncome: 100 }], summary: { monthsAnalyzed: 1 } };
+    const comParcial = {
+      months: [...base.months, { yearMonth: ymCorrente, validatedIncome: 9999 }],
+      summary: { monthsAnalyzed: 1 },
+    };
+    expect(computeRendaStats(comParcial)).toEqual(computeRendaStats(base));
+  });
+});

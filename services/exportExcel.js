@@ -10,6 +10,10 @@ import { maskCpf as maskCpfShared, mesLabel, periodo, slug } from '../lib/format
 import { PRODUCT_LABELS, isMesCorrente, receiptMethod } from './domain';
 import { buildExtratoLines, groupStatementByInstitution } from './extratoFormat.js';
 
+function periodoIncomeLabel(income) {
+  return `${periodo(income)}${isMesCorrente(income?.toYearMonth) ? ' (mês corrente parcial)' : ''}`;
+}
+
 async function loadExcelJS() {
   const mod = await import('exceljs');
   return mod.default ?? mod;
@@ -480,7 +484,7 @@ function appendResumoV0(ws, startRow, { client, caseItem, insights, income, stat
     ['CONFIANÇA DO DADO & FONTES', [
       ['Open Finance', client?.akropoliLinkId ? 'Conectado' : 'Não informado',
         'Status operacional baseado no vínculo Akropoli do cliente recebido pelo front.'],
-      ['Período analisado', periodo(income),
+      ['Período analisado', periodoIncomeLabel(income),
         `Meses efetivamente cobertos: ${mesesRecebidos}.`],
       ['Último sync', dateTimeStr(insights?.lastSyncAt),
         'Data informada pelo backend em `insights.lastSyncAt`, quando disponível.'],
@@ -559,7 +563,7 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, statement, d
   r += 1;
   identRow(ws, r, [
     ['Open Finance', client?.akropoliLinkId ? 'Conectado' : '—'],
-    ['Período analisado', periodo(income)],
+    ['Período analisado', periodoIncomeLabel(income)],
     ['', ''],
   ]);
   r += 2;
@@ -567,8 +571,9 @@ function buildResumoSheet(ws, { client, caseItem, insights, income, statement, d
   sectionHeader(ws, r, 6, 'INDICADORES (JANELA DE 12 MESES)');
   r += 1;
   const incomeMonths = income?.months || [];
-  const mesesRecebidos = income?.summary?.monthsAnalyzed || incomeMonths.length;
-  const totalEntradas12m = sum(incomeMonths.map((m) => num(m.totalCredits) ?? 0));
+  const incomeMesesCompletos = incomeMonths.filter((m) => !isMesCorrente(m.yearMonth));
+  const mesesRecebidos = income?.summary?.monthsAnalyzed || incomeMesesCompletos.length;
+  const totalEntradas12m = sum(incomeMesesCompletos.map((m) => num(m.totalCredits) ?? 0));
   const rendaVerificadaMediana = num(income?.summary?.validatedIncomeAvg);
   kpiCard(ws, r, 1, {
     label: 'Total de entradas (12m)',
@@ -800,7 +805,7 @@ function buildAuditoriaSheet(ws, { client, caseItem, insights, income, dataStatu
       : dataStatus === 'empty'
         ? 'Real — sem dados Open Finance coletados ainda'
         : 'Demonstrativo — cliente não localizado na base de Clientes'],
-    ['Período analisado', periodo(income)],
+    ['Período analisado', periodoIncomeLabel(income)],
     ['Meses efetivamente cobertos', monthsCovered ? `${monthsCovered} de 12` : '0 de 12 — sem dados'],
     ['Open Finance', client?.akropoliLinkId ? 'Conectado' : '—'],
     ['Último sync', toExcelDateTime(insights?.lastSyncAt), FMT.dateTime],
