@@ -21,7 +21,7 @@ import { useClientData } from './hooks/useClientData';
 import { useIncomeComposition } from './hooks/useIncomeComposition';
 import { useLoanInsights } from './hooks/useLoanInsights';
 import { useAuth } from './hooks/useAuth';
-import { mapMonth, computeRendaStats, computeTendenciaRenda, classifyPerfilRenda, evaluateDecision, sanitizeDecisionCriteria, DEFAULT_DECISION_CRITERIA, PRODUCT_LABELS } from './services/domain';
+import { mapMonth, computeRendaStats, computeTendenciaRenda, classifyPerfilRenda, evaluateDecision, sanitizeDecisionCriteria, DEFAULT_DECISION_CRITERIA, PRODUCT_LABELS, statementWindow } from './services/domain';
 import { clientsApi } from './services/api';
 import { exportConsolidado } from './services/exportExcel.js';
 import { exportExtratoPdf } from './services/exportPdf.js';
@@ -246,7 +246,7 @@ export default function ScreenCliente({
             try {
               const [income, statement] = await Promise.all([
                 clientsApi.getIncomeComposition(clientId),
-                clientsApi.getStatement(clientId),
+                clientsApi.getStatement(clientId, statementWindow()),
               ]);
               await exportConsolidado({
                 client,
@@ -262,7 +262,7 @@ export default function ScreenCliente({
           onExportPdf={async () => {
             setExportError(null);
             try {
-              const statement = await clientsApi.getStatement(clientId);
+              const statement = await clientsApi.getStatement(clientId, statementWindow());
               exportExtratoPdf(client, statement);
             } catch (e) {
               console.error('Falha ao exportar extrato PDF', e);

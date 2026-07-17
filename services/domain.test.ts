@@ -5,6 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_DECISION_CRITERIA,
+  isMesCorrente,
+  statementWindow,
   POC_STATUS,
   QUEUE_ACTIONS,
   classifyPerfilRenda,
@@ -545,5 +547,24 @@ describe('classifyPerfilRenda', () => {
       { amount: 9000, classification: 'NREC', considered: false, description: 'SALARIO EMPRESA XYZ', personType: 'PESSOA_JURIDICA' },
     ]);
     expect(r.perfil).toBe('variavel');
+  });
+});
+
+describe('statementWindow', () => {
+  it('cobre os 12 meses completos mais o mês corrente parcial', () => {
+    expect(statementWindow(new Date(2026, 6, 17))).toEqual({ from: '2025-07', to: '2026-07' });
+  });
+
+  it('vira o ano corretamente', () => {
+    expect(statementWindow(new Date(2026, 0, 5))).toEqual({ from: '2025-01', to: '2026-01' });
+  });
+});
+
+describe('isMesCorrente', () => {
+  it('reconhece o mês corrente e rejeita meses fechados ou ausentes', () => {
+    const now = new Date(2026, 6, 17);
+    expect(isMesCorrente('2026-07', now)).toBe(true);
+    expect(isMesCorrente('2026-06', now)).toBe(false);
+    expect(isMesCorrente(undefined, now)).toBe(false);
   });
 });

@@ -20,7 +20,7 @@ import { clientsApi } from './services/api';
 import { exportConsolidado } from './services/exportExcel.js';
 import { exportExtratoPdf } from './services/exportPdf.js';
 import { fmtBRL as fmt } from './lib/format';
-import { confTone, mapMonth, groupDetail, computeRecurringIncome, receitaTrimestral, recurringDetailByMonth } from './services/domain';
+import { confTone, mapMonth, groupDetail, computeRecurringIncome, receitaTrimestral, recurringDetailByMonth, statementWindow } from './services/domain';
 
 // ─── Tela: Composição da renda verificada ───────────────────────────────────
 
@@ -67,7 +67,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
           onExportExcel={async () => {
             setExportError(null);
             try {
-              const statement = await clientsApi.getStatement(clientId);
+              const statement = await clientsApi.getStatement(clientId, statementWindow());
               await exportConsolidado({
                 client: clientData?.client,
                 insights: clientData?.insights,
@@ -82,7 +82,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
           onExportPdf={async () => {
             setExportError(null);
             try {
-              const statement = await clientsApi.getStatement(clientId);
+              const statement = await clientsApi.getStatement(clientId, statementWindow());
               exportExtratoPdf(clientData?.client, statement);
             } catch (e) {
               console.error('Falha ao exportar extrato PDF', e);

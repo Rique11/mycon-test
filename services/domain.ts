@@ -7,7 +7,10 @@
  * pagadora em meses consecutivos), receita trimestral (últimos 3 meses) e o
  * detalhamento por mês da renda recorrente (grupo "C. Renda Recorrente"), com um
  * status por lançamento indicando há quantos meses a renda é recorrente ou, quando
- * a recorrência já terminou, o período em que ela esteve ativa.
+ * a recorrência já terminou, o período em que ela esteve ativa. Inclui a
+ * janela de exibição do extrato (statementWindow): 12 meses completos mais
+ * o mês corrente parcial, para o analista decidir se os lançamentos do mês
+ * em curso agregam à avaliação.
  */
 
 import { num, ymLabels, mesLabel } from '../lib/format';
@@ -828,4 +831,20 @@ export function classifyPerfilRenda(
   }
 
   return { perfil, ...PERFIL_RENDA_VIEW[perfil] };
+}
+
+/**
+ * Janela de exibição do extrato: os 12 meses completos anteriores mais o mês
+ * corrente (parcial). A análise de renda permanece em meses completos; o mês
+ * em curso entra apenas na exibição/exportação do extrato.
+ */
+export function statementWindow(now: Date = new Date()): { from: string; to: string } {
+  const ym = (y: number, m: number) => `${y}-${String(m + 1).padStart(2, '0')}`;
+  const from = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  return { from: ym(from.getFullYear(), from.getMonth()), to: ym(now.getFullYear(), now.getMonth()) };
+}
+
+/** Indica se um yearMonth (YYYY-MM) é o mês corrente — usado para rotular o período parcial. */
+export function isMesCorrente(ym: unknown, now: Date = new Date()): boolean {
+  return String(ym ?? '') === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }

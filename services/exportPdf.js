@@ -1,5 +1,5 @@
 /**
- * exportPdf.js — geração do extrato Open Finance 12m em PDF via janela de
+ * exportPdf.js — geração do extrato Open Finance (12 meses completos + mês corrente parcial) em PDF via janela de
  * impressão do navegador, no formato de 5 colunas (Data Lançamento, Histórico,
  * Descrição, Valor, Saldo), com um documento separado por instituição
  * financeira conectada — título, metadados e arquivo próprios, cada um com
@@ -13,6 +13,7 @@
 
 import { escapeHtml, maskCpf, periodo, slug } from '../lib/format';
 import { buildExtratoLines, groupStatementByInstitution } from './extratoFormat.js';
+import { isMesCorrente } from './domain';
 
 function moneyBRL(value) {
   if (value == null) return '';
@@ -59,8 +60,8 @@ function extratoTableHtml(groupStatement) {
 function extratoDocumentHtml(client, statement, group) {
   const clientName = client?.name || 'Cliente';
   const title = group.label
-    ? `Extrato Open Finance 12m - ${clientName} - ${group.label}`
-    : `Extrato Open Finance 12m - ${clientName}`;
+    ? `Extrato Open Finance - ${clientName} - ${group.label}`
+    : `Extrato Open Finance - ${clientName}`;
   const institutionMeta = group.label ? ` · Instituição: ${escapeHtml(group.label)}` : '';
 
   return `
@@ -83,7 +84,7 @@ function extratoDocumentHtml(client, statement, group) {
       <body>
         <h1>${escapeHtml(title)}</h1>
         <div class="meta">
-          CPF: ${escapeHtml(client?.cpf ? maskCpf(client.cpf) : '—')}${institutionMeta} · Período: ${escapeHtml(periodo(statement))} · Gerado em ${escapeHtml(new Date().toLocaleString('pt-BR'))}
+          CPF: ${escapeHtml(client?.cpf ? maskCpf(client.cpf) : '—')}${institutionMeta} · Período: ${escapeHtml(periodo(statement))}${isMesCorrente(statement?.toYearMonth) ? ' (mês corrente parcial)' : ''} · Gerado em ${escapeHtml(new Date().toLocaleString('pt-BR'))}
         </div>
         ${extratoTableHtml(group.statement)}
         <script>window.onload = () => { window.print(); };</script>

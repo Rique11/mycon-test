@@ -1,13 +1,13 @@
 // exportExcel.js — geração de planilhas Excel (ExcelJS) a partir dos dados
 // Open Finance e do caso de contemplação: o extrato normalizado e o dossiê
 // consolidado (Resumo, Raio-X, Composição Mensal, Lançamentos, uma aba de
-// Extrato 12m por instituição financeira conectada e Auditoria), seguindo o
+// Extrato por instituição financeira conectada (12 meses completos + mês corrente parcial) e Auditoria), seguindo o
 // Guia Funcional. O arquivo não contém recomendação/decisão. Estilo visual
 // replicado do Excel de referência
 // (mycon-poc-excel-consolidado-V1-visual-padronizado.xlsx).
 
 import { maskCpf as maskCpfShared, mesLabel, periodo, slug } from '../lib/format';
-import { PRODUCT_LABELS, receiptMethod } from './domain';
+import { PRODUCT_LABELS, isMesCorrente, receiptMethod } from './domain';
 import { buildExtratoLines, groupStatementByInstitution } from './extratoFormat.js';
 
 async function loadExcelJS() {
@@ -828,7 +828,7 @@ export async function exportExtrato(client, statement) {
     const ws = workbook.addWorksheet(safeSheetName(base, used));
     buildExtratoSheet(ws, {
       statement: group.statement,
-      clientLine: `Cliente: ${client?.name || '—'} · Período: ${periodo(statement)}`,
+      clientLine: `Cliente: ${client?.name || '—'} · Período: ${periodo(statement)}${isMesCorrente(statement?.toYearMonth) ? ' (mês corrente parcial)' : ''}`,
       institutionLabel: group.label,
     });
   });
