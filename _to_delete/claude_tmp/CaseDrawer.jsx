@@ -5,8 +5,6 @@
  * operacional exibe a trilha de auditoria persistida no backend
  * (GET /clients/{id}/audit-events) em mensagens abstraídas — Cliente acessado,
  * Dossiê exportado, PDF exportado — sem expor dados técnicos da trilha.
- * Mostra 5 eventos, expande até 20 e, acima de 20, oferece o download do
- * histórico completo em CSV.
  */
 
 import React from 'react';
@@ -79,8 +77,7 @@ const AUDIT_EVENT_LABELS = {
   PDF_EXPORTED: 'PDF exportado',
 };
 
-const AUDIT_EVENTS_COLLAPSED_LIMIT = 5;
-const AUDIT_EVENTS_EXPANDED_LIMIT = 20;
+const AUDIT_EVENTS_DISPLAY_LIMIT = 12;
 
 function appendCaseEvent(caseItem, label, actor = 'Lizard') {
   return [
@@ -335,11 +332,6 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
   const evidenceState = useCaseEvidence(caseItem, onUpdateCase);
   const [auditEvents, setAuditEvents] = React.useState(null);
   const [auditEventsError, setAuditEventsError] = React.useState(false);
-  const [historicoExpandido, setHistoricoExpandido] = React.useState(false);
-
-  React.useEffect(() => {
-    setHistoricoExpandido(false);
-  }, [evidenceState.id]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -364,28 +356,6 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
       cancelled = true;
     };
   }, [evidenceState.id, exporting]);
-
-  const auditRows = (auditEvents || []).filter((event) => AUDIT_EVENT_LABELS[event.type]);
-  const visibleAuditRows = auditRows.slice(0, historicoExpandido ? AUDIT_EVENTS_EXPANDED_LIMIT : AUDIT_EVENTS_COLLAPSED_LIMIT);
-
-  function handleDownloadHistorico() {
-    const lines = ['Data/Hora;Evento', ...auditRows.map((event) => `${formatDateTime(event.occurredAt)};${AUDIT_EVENT_LABELS[event.type]}`)];
-    const clientName = String(caseItem.name || evidenceState.client?.name || 'cliente')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'cliente';
-    const blob = new Blob(['\uFEFF', lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `historico-operacional-${clientName}.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-  }
 
   const evidence = evidenceState.loading ? null : evidenceState;
   const consentStartedAt = getConsentStartFromLinks(evidence?.links) || getConsentGeneratedAt(caseItem);
@@ -778,15 +748,18 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
           <section style={{ padding: 14, border: `1px solid ${TOKENS.border}`, borderRadius: 12, background: TOKENS.surface }}>
             <h3 style={{ margin: '0 0 10px' }}>Histórico operacional</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {visibleAuditRows.map((event, index) => (
-                <div key={`${event.type}-${event.occurredAt}-${index}`} style={{ display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr)', gap: 10 }}>
-                  <span style={{ color: TOKENS.textSubtle, fontSize: 11.2 }}>{formatDateTime(event.occurredAt)}</span>
-                  <span style={{ color: TOKENS.text, fontSize: 12.5, lineHeight: 1.4 }}>
-                    {AUDIT_EVENT_LABELS[event.type]}
-                  </span>
-                </div>
-              ))}
-              {!auditRows.length && (
+              {(auditEvents || [])
+                .filter((event) => AUDIT_EVENT_LABELS[event.type])
+                .slice(0, AUDIT_EVENTS_DISPLAY_LIMIT)
+                .map((event, index) => (
+                  <div key={`${event.type}-${event.occurredAt}-${index}`} style={{ display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr)', gap: 10 }}>
+                    <span style={{ color: TOKENS.textSubtle, fontSize: 11.2 }}>{formatDateTime(event.occurredAt)}</span>
+                    <span style={{ color: TOKENS.text, fontSize: 12.5, lineHeight: 1.4 }}>
+                      {AUDIT_EVENT_LABELS[event.type]}
+                    </span>
+                  </div>
+                ))}
+              {(!auditEvents || !auditEvents.length) && (
                 <span style={{ color: TOKENS.textSubtle, fontSize: 12.5 }}>
                   {!evidenceState.id
                     ? 'Caso sem cliente vinculado — sem auditoria persistida.'
@@ -796,21 +769,6 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
                         ? 'Nenhum evento de auditoria registrado para este cliente.'
                         : 'Carregando histórico de auditoria...'}
                 </span>
-              )}
-              {auditRows.length > AUDIT_EVENTS_COLLAPSED_LIMIT && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-                  <Button variant="outline" size="sm" onClick={() => setHistoricoExpandido((value) => !value)}>
-                    {historicoExpandido
-                      ? 'Ver menos'
-                      : `Ver mais (${Math.min(auditRows.length, AUDIT_EVENTS_EXPANDED_LIMIT) - AUDIT_EVENTS_COLLAPSED_LIMIT})`}
-                  </Button>
-                  {auditRows.length > AUDIT_EVENTS_EXPANDED_LIMIT && (
-                    <Button variant="outline" size="sm" onClick={handleDownloadHistorico}>
-                      <Icon d={I.download} size={14} stroke="currentColor" strokeWidth={1.9} />
-                      Baixar histórico operacional
-                    </Button>
-                  )}
-                </div>
               )}
             </div>
           </section>

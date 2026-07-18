@@ -4,9 +4,6 @@
  * Quando o cliente tem conexão Open Finance ativa mas nunca foi sincronizado,
  * dispara a coleta inicial (sync) e aguarda os insights refletirem os dados;
  * syncPerformed indica que a coleta foi disparada nesta carga.
- * options.context é repassado ao GET /clients/{id}: a tela de análise passa
- * 'ANALYSIS' para o backend auditar a entrada (CLIENT_ANALYSIS_VIEWED); telas
- * derivadas (composição) omitem, e a carga não conta como acesso à análise.
  */
 
 import React from 'react';
@@ -29,12 +26,11 @@ export interface UseClientDataResult {
 
 const EMPTY: ClientData = { client: null, insights: null, syncPerformed: false };
 
-export function useClientData(clientId: string | null, options?: { context?: string }): UseClientDataResult {
-  const context = options?.context ?? null;
+export function useClientData(clientId: string | null): UseClientDataResult {
   const { data, loading, error, retry } = useApiResource<ClientData>(
     async (signal) => {
       const [client, insights] = await Promise.all([
-        clientsApi.getById(clientId as string, context ? { context } : undefined, signal),
+        clientsApi.getById(clientId as string, signal),
         clientsApi.getInsights(clientId as string, signal),
       ]);
       const syncPerformed = needsInitialSync(client, insights);
@@ -43,7 +39,7 @@ export function useClientData(clientId: string | null, options?: { context?: str
         : insights;
       return { client, insights: syncedInsights, syncPerformed };
     },
-    [clientId, context],
+    [clientId],
     { enabled: !!clientId, errorMessage: 'Erro ao carregar dados' },
   );
 

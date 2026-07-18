@@ -304,8 +304,8 @@ export const clientsApi = {
     return request<Page<ClientResponse>>('/api/v1/clients', { query, signal });
   },
 
-  getById: (id: string, params?: QueryParams, signal?: AbortSignal) =>
-    request<ClientResponse>(`/api/v1/clients/${id}`, { query: params, signal }),
+  getById: (id: string, signal?: AbortSignal) =>
+    request<ClientResponse>(`/api/v1/clients/${id}`, { signal }),
 
   create: (body: Record<string, unknown>) =>
     request<ClientResponse>('/api/v1/clients', { method: 'POST', body }),

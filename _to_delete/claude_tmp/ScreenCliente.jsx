@@ -104,7 +104,7 @@ export default function ScreenCliente({
   backLabel = 'Voltar para clientes',
 }) {
   const { logout } = useAuth();
-  const { data, loading, error, retry } = useClientData(clientId, { context: 'ANALYSIS' });
+  const { data, loading, error, retry } = useClientData(clientId);
   const { data: incomeData, loading: incomeLoading, retry: retryIncome } = useIncomeComposition(clientId, statementWindow());
   const { data: statementData } = useStatement(clientId, statementWindow());
   const { data: loanData, loading: loanLoading } = useLoanInsights(clientId);
