@@ -61,7 +61,7 @@ function getPendingCases(cases) {
 }
 
 function getQueueBanksLabel(caseItem, queueRule, bankLabels = getLocalBankLabels(caseItem)) {
-  if (bankLabels.length) return bankLabels.join(', ');
+  if (bankLabels.length) return bankLabels.length === 1 ? '1 banco' : `${bankLabels.length} bancos`;
   return queueRule.accepted ? 'Banco nao identificado' : 'Aguardando consentimento';
 }
 
@@ -492,7 +492,7 @@ function CaseRow({ caseItem, onSelectCase }) {
         <div className="num" style={{ fontSize: 12.5, color: TOKENS.text }}>G {caseItem.group} / C {caseItem.quota}</div>
       </td>
       <td style={{ padding: '13px 14px', verticalAlign: 'top', maxWidth: 150 }}>
-        <span style={{ fontSize: 12.5, color: bankLabels.length ? TOKENS.text : TOKENS.textSubtle }}>
+        <span title={bankLabels.join(', ')} style={{ fontSize: 12.5, color: bankLabels.length ? TOKENS.text : TOKENS.textSubtle }}>
           {banks}
         </span>
       </td>

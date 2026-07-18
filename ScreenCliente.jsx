@@ -698,19 +698,15 @@ function IncomeChart({ data, showSaldo = false }) {
             <text x={x + barW / 2} y={yFor(Math.max(d.v, 0)) - 5} textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
               {label}
             </text>
-            {showSaldo && d.s != null && (
-              <>
-                {bar(x + barW + 2, d.s, TOKENS.primary, 0.45, 'saldo')}
-                <text x={x + barW + 2 + barW / 2}
-                  y={d.s >= 0 ? yFor(d.s) - 5 : yFor(d.s) + 10}
-                  textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
-                  {d.s !== 0 ? fmtChartValue(d.s) : ''}
-                </text>
-              </>
-            )}
+            {showSaldo && d.s != null && bar(x + barW + 2, d.s, TOKENS.primary, 0.45, 'saldo')}
             <text x={pad.left + slotW * i + slotW / 2} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill={TOKENS.textMuted}>
               {d.m}
             </text>
+            {showSaldo && d.s != null && (
+              <text x={pad.left + slotW * i + slotW / 2} y={H - pad.bottom + 25} textAnchor="middle" fontSize={8} fontWeight={600} fill={TOKENS.primary}>
+                {fmtChartValue(d.s)}
+              </text>
+            )}
           </g>
         );
       })}
