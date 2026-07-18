@@ -75,6 +75,16 @@ export interface ConsentLinkResponse {
   [key: string]: unknown;
 }
 
+/**
+ * Evento de auditoria abstraído de GET /clients/{id}/audit-events. O backend
+ * expõe apenas o tipo neutro (CLIENT_ACCESSED | DOSSIER_EXPORTED |
+ * PDF_EXPORTED) e o instante — nunca IP, user-agent ou metadata da trilha.
+ */
+export interface AuditEventResponse {
+  type: 'CLIENT_ACCESSED' | 'DOSSIER_EXPORTED' | 'PDF_EXPORTED' | string;
+  occurredAt: string;
+}
+
 export type QueryParams = Record<string, string | number | boolean | null | undefined>;
 
 interface RequestOptions extends Omit<RequestInit, 'body' | 'headers'> {
@@ -329,4 +339,7 @@ export const clientsApi = {
 
   getStatement: (id: string, params?: QueryParams, signal?: AbortSignal) =>
     request(`/api/v1/clients/${id}/statement`, { query: params, signal }),
+
+  getAuditEvents: (id: string, signal?: AbortSignal) =>
+    request<AuditEventResponse[]>(`/api/v1/clients/${id}/audit-events`, { signal }),
 };

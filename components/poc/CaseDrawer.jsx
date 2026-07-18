@@ -1,7 +1,10 @@
 /**
  * CaseDrawer.jsx — drawer lateral com o detalhe operacional de um caso da POC:
  * dados do contemplado, status do consentimento, coleta Open Finance, extrato e
- * evidências, pendências estruturadas, histórico e exportações (Excel/PDF).
+ * evidências, pendências estruturadas e exportações (Excel/PDF). O Histórico
+ * operacional exibe a trilha de auditoria persistida no backend
+ * (GET /clients/{id}/audit-events) em mensagens abstraídas — Cliente acessado,
+ * Dossiê exportado, PDF exportado — sem expor dados técnicos da trilha.
  */
 
 import React from 'react';
@@ -67,6 +70,14 @@ function getCaseEvents(caseItem) {
     { at: caseItem.createdAt, label: meta.label, actor: meta.owner || 'Operação' },
   ];
 }
+
+const AUDIT_EVENT_LABELS = {
+  CLIENT_ACCESSED: 'Cliente acessado',
+  DOSSIER_EXPORTED: 'Dossiê exportado',
+  PDF_EXPORTED: 'PDF exportado',
+};
+
+const AUDIT_EVENTS_DISPLAY_LIMIT = 12;
 
 function appendCaseEvent(caseItem, label, actor = 'Lizard') {
   return [
@@ -307,7 +318,6 @@ async function copyText(value) {
 
 export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdateCase }) {
   const baseMeta = getStatusMeta(caseItem.status);
-  const events = getCaseEvents(caseItem);
   const consent = getConsentInfo(caseItem);
   const [openingClient, setOpeningClient] = React.useState(false);
   const [openClientError, setOpenClientError] = React.useState('');
@@ -320,6 +330,32 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
   const copyTimerRef = React.useRef(null);
   const backdropMouseDownRef = React.useRef(false);
   const evidenceState = useCaseEvidence(caseItem, onUpdateCase);
+  const [auditEvents, setAuditEvents] = React.useState(null);
+  const [auditEventsError, setAuditEventsError] = React.useState(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!evidenceState.id) {
+      setAuditEvents(null);
+      setAuditEventsError(false);
+      return undefined;
+    }
+    if (exporting) return undefined;
+    clientsApi.getAuditEvents(evidenceState.id)
+      .then((rows) => {
+        if (cancelled) return;
+        setAuditEvents(Array.isArray(rows) ? rows : []);
+        setAuditEventsError(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAuditEvents(null);
+        setAuditEventsError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [evidenceState.id, exporting]);
 
   const evidence = evidenceState.loading ? null : evidenceState;
   const consentStartedAt = getConsentStartFromLinks(evidence?.links) || getConsentGeneratedAt(caseItem);
@@ -497,11 +533,11 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
         income: evidenceState.income,
         statement: evidenceState.statement,
       };
-      if ((!payload.statement || !payload.income || !payload.insights) && !fallback && id) {
+      if (!fallback && id) {
         const [insights, income, statement] = await Promise.all([
           clientsApi.getInsights(id),
           clientsApi.getIncomeComposition(id, { months: 12 }),
-          clientsApi.getStatement(id, { months: 12 }),
+          clientsApi.getStatement(id, { months: 12, purpose: 'EXPORT', format: 'EXCEL' }),
         ]);
         payload = { insights, income, statement };
       }
@@ -535,7 +571,7 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
       const { client, id, fallback } = await getRealOrFallbackClient();
       let statement = evidenceState.statement;
       if (!fallback && id) {
-        statement = statement || await clientsApi.getStatement(id, { months: 12 });
+        statement = await clientsApi.getStatement(id, { months: 12, purpose: 'EXPORT', format: 'PDF' });
       }
       if (!statement) statement = emptyOutputPayload(caseItem).statement;
       exportExtratoPdf(client, statement);
@@ -712,14 +748,28 @@ export default function CaseDrawer({ caseItem, onClose, onSelectClient, onUpdate
           <section style={{ padding: 14, border: `1px solid ${TOKENS.border}`, borderRadius: 12, background: TOKENS.surface }}>
             <h3 style={{ margin: '0 0 10px' }}>Histórico operacional</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {events.map((event, index) => (
-                <div key={`${event.label}-${index}`} style={{ display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr)', gap: 10 }}>
-                  <span style={{ color: TOKENS.textSubtle, fontSize: 11.2 }}>{formatDateTime(event.at)}</span>
-                  <span style={{ color: TOKENS.text, fontSize: 12.5, lineHeight: 1.4 }}>
-                    <strong style={{ fontWeight: 750 }}>{event.actor || 'Operação'}:</strong> {event.label}
-                  </span>
-                </div>
-              ))}
+              {(auditEvents || [])
+                .filter((event) => AUDIT_EVENT_LABELS[event.type])
+                .slice(0, AUDIT_EVENTS_DISPLAY_LIMIT)
+                .map((event, index) => (
+                  <div key={`${event.type}-${event.occurredAt}-${index}`} style={{ display: 'grid', gridTemplateColumns: '88px minmax(0, 1fr)', gap: 10 }}>
+                    <span style={{ color: TOKENS.textSubtle, fontSize: 11.2 }}>{formatDateTime(event.occurredAt)}</span>
+                    <span style={{ color: TOKENS.text, fontSize: 12.5, lineHeight: 1.4 }}>
+                      {AUDIT_EVENT_LABELS[event.type]}
+                    </span>
+                  </div>
+                ))}
+              {(!auditEvents || !auditEvents.length) && (
+                <span style={{ color: TOKENS.textSubtle, fontSize: 12.5 }}>
+                  {!evidenceState.id
+                    ? 'Caso sem cliente vinculado — sem auditoria persistida.'
+                    : auditEventsError
+                      ? 'Não foi possível carregar o histórico de auditoria agora.'
+                      : auditEvents
+                        ? 'Nenhum evento de auditoria registrado para este cliente.'
+                        : 'Carregando histórico de auditoria...'}
+                </span>
+              )}
             </div>
           </section>
         </div>

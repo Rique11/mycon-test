@@ -257,7 +257,7 @@ export default function ScreenCliente({
             try {
               const [income, statement] = await Promise.all([
                 clientsApi.getIncomeComposition(clientId),
-                clientsApi.getStatement(clientId, statementWindow()),
+                clientsApi.getStatement(clientId, { ...statementWindow(), purpose: 'EXPORT', format: 'EXCEL' }),
               ]);
               await exportConsolidado({
                 client,
@@ -273,7 +273,7 @@ export default function ScreenCliente({
           onExportPdf={async () => {
             setExportError(null);
             try {
-              const statement = await clientsApi.getStatement(clientId, statementWindow());
+              const statement = await clientsApi.getStatement(clientId, { ...statementWindow(), purpose: 'EXPORT', format: 'PDF' });
               exportExtratoPdf(client, statement);
             } catch (e) {
               console.error('Falha ao exportar extrato PDF', e);
