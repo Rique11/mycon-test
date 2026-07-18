@@ -419,6 +419,53 @@ describe('computeRendaStats', () => {
     expect(zerada.media12m).toBe(0);
     expect(zerada.volatilidade).toBeNull();
   });
+
+  const ymRelativo = (offset: number) => {
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  it('exclui o mês corrente parcial da janela sem gerar mês zero fantasma', () => {
+    const income = {
+      fromYearMonth: ymRelativo(-3),
+      toYearMonth: ymRelativo(0),
+      months: [
+        month(ymRelativo(-3), 4000),
+        month(ymRelativo(-2), 4000),
+        month(ymRelativo(-1), 4000),
+        month(ymRelativo(0), 1200),
+      ],
+      summary: { monthsAnalyzed: 4 },
+    };
+    const r = computeRendaStats(income);
+    expect(r.media12m).toBe(4000);
+    expect(r.volatilidade).toBe(0);
+  });
+
+  it('deriva a janela de fromYearMonth/toYearMonth e completa ausentes com zero', () => {
+    const income = {
+      fromYearMonth: '2025-01',
+      toYearMonth: '2025-04',
+      months: [month('2025-01', 4000), month('2025-04', 4000)],
+      summary: { monthsAnalyzed: 2 },
+    };
+    const r = computeRendaStats(income);
+    expect(r.media12m).toBe(2000);
+    expect(r.volatilidade).toBeCloseTo(1, 5);
+  });
+
+  it('ignora período inválido no payload e mantém o fallback de monthsAnalyzed', () => {
+    const income = {
+      fromYearMonth: 'invalido',
+      toYearMonth: '2025-13',
+      months: [month('2025-05', 4000), month('2025-06', 4000)],
+      summary: { monthsAnalyzed: 4 },
+    };
+    const r = computeRendaStats(income);
+    expect(r.media12m).toBe(2000);
+    expect(r.volatilidade).toBeCloseTo(1, 5);
+  });
 });
 
 describe('getConsentStartFromLinks', () => {

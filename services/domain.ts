@@ -349,20 +349,44 @@ export interface RendaStats {
   volatilidade: number | null;
 }
 
+/** Converte um yearMonth (YYYY-MM) em índice absoluto de mês; null se inválido. */
+function monthIndex(ym: unknown): number | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(String(ym ?? ''));
+  if (!match) return null;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  return Number(match[1]) * 12 + (month - 1);
+}
+
 /**
  * Deriva média mensal (12m) e volatilidade (coeficiente de variação) da renda
  * verificada (`validatedIncome`, pagadores recorrentes) a partir de um payload
- * de composição de renda (`{ months, summary }`). A série cobre a janela
- * analisada inteira: meses sem crédito algum não vêm em `months`, então a série
- * é completada com zeros até `summary.monthsAnalyzed`. Meses sem renda contam
- * como instabilidade — não são filtrados, para que renda presente em poucos
- * meses da janela não aparente estabilidade.
+ * de composição de renda (`{ fromYearMonth, toYearMonth, months, summary }`).
+ * A série considera apenas meses completos e cobre a janela analisada inteira:
+ * o mês corrente parcial é excluído e meses sem crédito algum (ausentes de
+ * `months`) contam como zero — renda presente em poucos meses da janela não
+ * pode aparentar estabilidade. O tamanho da janela vem de `fromYearMonth`/
+ * `toYearMonth` do próprio payload, descontando o mês corrente parcial;
+ * `summary.monthsAnalyzed` é usado apenas como fallback quando o período não
+ * vem no payload, pois o contrato não garante se essa contagem inclui ou não
+ * o mês parcial (semântica a confirmar no backend).
  */
 export function computeRendaStats(
-  income: { months?: Array<Record<string, unknown>>; summary?: { monthsAnalyzed?: number } } | null | undefined,
+  income: {
+    fromYearMonth?: unknown;
+    toYearMonth?: unknown;
+    months?: Array<Record<string, unknown>>;
+    summary?: { monthsAnalyzed?: number };
+  } | null | undefined,
 ): RendaStats {
   const meses = (income?.months || []).map((mo) => mapMonth(mo)).filter((m) => !m.parcial);
-  const mesesAnalisados = income?.summary?.monthsAnalyzed || meses.length;
+
+  const fromIdx = monthIndex(income?.fromYearMonth);
+  const toIdx = monthIndex(income?.toYearMonth);
+  const janelaCompleta = fromIdx != null && toIdx != null && toIdx >= fromIdx
+    ? toIdx - fromIdx + 1 - (isMesCorrente(income?.toYearMonth) ? 1 : 0)
+    : income?.summary?.monthsAnalyzed || meses.length;
+  const mesesAnalisados = Math.max(janelaCompleta, meses.length);
   const serie = meses.map((m) => m.val);
   while (serie.length < mesesAnalisados) serie.push(0);
 
