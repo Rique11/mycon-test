@@ -388,3 +388,60 @@ export function saldoFimDeMesPorMes(statement, mesesIds = null) {
   });
   return result;
 }
+
+const MS_POR_DIA = 86400000;
+
+/**
+ * Quantidade de dias, na janela do extrato, em que o saldo consolidado ficou
+ * negativo. Reconstrói o saldo por lançamento (buildExtratoLines), reduz ao
+ * saldo de fim de dia por instituição (último lançamento do dia) e soma os
+ * grupos com carry-forward, contando os dias do intervalo [primeiro, último
+ * lançamento] em que a soma ficou abaixo de zero. Só reflete o saldo bancário
+ * real quando o extrato está ancorado no saldo atual da conta; sem esse dado,
+ * representa o fluxo acumulado (ver buildExtratoLines).
+ */
+export function diasComSaldoNegativo(statement) {
+  const rows = Array.isArray(statement?.rows) ? statement.rows : [];
+  if (rows.length === 0) return 0;
+
+  const porGrupo = groupStatementByInstitution(statement)
+    .map((group) => {
+      const porDia = new Map();
+      buildExtratoLines(group.statement).lines
+        .map((l, index) => ({ ts: dateTimestamp(l.date), index, saldo: l.saldo }))
+        .filter((l) => Number.isFinite(l.ts) && l.ts > 0)
+        .sort((a, b) => a.ts - b.ts || a.index - b.index)
+        .forEach((l) => porDia.set(l.ts, l.saldo));
+      return [...porDia.entries()]
+        .map(([ts, saldo]) => ({ ts, saldo }))
+        .sort((a, b) => a.ts - b.ts);
+    })
+    .filter((linhas) => linhas.length > 0);
+
+  if (porGrupo.length === 0) return 0;
+
+  const eventos = [...new Set(porGrupo.flat().map((l) => l.ts))].sort((a, b) => a - b);
+
+  const saldoConsolidado = (ts) => {
+    let total = null;
+    porGrupo.forEach((linhas) => {
+      let ultimo = null;
+      for (const l of linhas) {
+        if (l.ts <= ts) ultimo = l.saldo;
+        else break;
+      }
+      if (ultimo != null) total = (total ?? 0) + ultimo;
+    });
+    return total;
+  };
+
+  let dias = 0;
+  eventos.forEach((ts, i) => {
+    const total = saldoConsolidado(ts);
+    if (total != null && total < -1e-9) {
+      const fim = i < eventos.length - 1 ? eventos[i + 1] : ts + MS_POR_DIA;
+      dias += Math.round((fim - ts) / MS_POR_DIA);
+    }
+  });
+  return dias;
+}

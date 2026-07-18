@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildExtratoLines,
+  diasComSaldoNegativo,
   extratoSignedValue,
   groupStatementByInstitution,
   historicoLabel,
@@ -323,5 +324,58 @@ describe('saldoFimDeMesPorMes', () => {
   it('retorna vazio sem extrato', () => {
     expect(saldoFimDeMesPorMes(null, ['2026-01'])).toEqual({});
     expect(saldoFimDeMesPorMes({ rows: [] }, ['2026-01'])).toEqual({});
+  });
+});
+
+describe('diasComSaldoNegativo', () => {
+  it('conta os dias entre lançamentos em que o saldo ficou negativo', () => {
+    const statement = {
+      rows: [
+        { date: '2026-03-01', type: 'PIX', outflow: 100 },
+        { date: '2026-03-05', type: 'PIX', inflow: 50 },
+        { date: '2026-03-10', type: 'PIX', inflow: 200 },
+      ],
+    };
+    // -100 de 01 a 04 (4 dias) + -50 de 05 a 09 (5 dias) = 9; positivo a partir de 10.
+    expect(diasComSaldoNegativo(statement)).toBe(9);
+  });
+
+  it('retorna 0 quando o saldo nunca fica negativo', () => {
+    const statement = {
+      rows: [
+        { date: '2026-03-01', type: 'PIX', inflow: 100 },
+        { date: '2026-03-10', type: 'PIX', outflow: 20 },
+      ],
+    };
+    expect(diasComSaldoNegativo(statement)).toBe(0);
+  });
+
+  it('usa o saldo de fim de dia (recuperação no mesmo dia não conta)', () => {
+    const statement = {
+      rows: [
+        { date: '2026-05-02', type: 'PIX', outflow: 500 },
+        { date: '2026-05-02', type: 'PIX', inflow: 700 },
+        { date: '2026-05-04', type: 'PIX', outflow: 300 },
+      ],
+    };
+    // 02/05 fecha em +200 (não conta); 04/05 fecha em -100 (1 dia).
+    expect(diasComSaldoNegativo(statement)).toBe(1);
+  });
+
+  it('consolida instituições somando o saldo com carry-forward', () => {
+    const statement = {
+      rows: [
+        { date: '2026-03-01', type: 'PIX', outflow: 100, institution: 'Banco A' },
+        { date: '2026-03-06', type: 'PIX', inflow: 100, institution: 'Banco A' },
+        { date: '2026-03-03', type: 'PIX', inflow: 40, institution: 'Banco B' },
+      ],
+    };
+    // -100 (só A) de 01 a 02 (2 dias) + -60 (A+B) de 03 a 05 (3 dias) = 5.
+    expect(diasComSaldoNegativo(statement)).toBe(5);
+  });
+
+  it('retorna 0 sem extrato', () => {
+    expect(diasComSaldoNegativo(null)).toBe(0);
+    expect(diasComSaldoNegativo({ rows: [] })).toBe(0);
   });
 });

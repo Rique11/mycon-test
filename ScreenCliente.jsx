@@ -26,7 +26,7 @@ import { mapMonth, computeRendaStats, computeTendenciaRenda, classifyPerfilRenda
 import { clientsApi } from './services/api';
 import { exportConsolidado } from './services/exportExcel.js';
 import { exportExtratoPdf } from './services/exportPdf.js';
-import { saldoFimDeMesPorMes } from './services/extratoFormat.js';
+import { diasComSaldoNegativo, saldoFimDeMesPorMes } from './services/extratoFormat.js';
 import { fmtBRL, fmtDate, maskCpf } from './lib/format';
 
 const CRITERIA_STORAGE_KEY = 'mycon_decision_criteria_v1';
@@ -241,6 +241,9 @@ export default function ScreenCliente({
     s: saldoByMonth?.[m.id] ?? null,
   }));
 
+  const temExtrato = Array.isArray(statementData?.rows) && statementData.rows.length > 0;
+  const diasSaldoNegativo = temExtrato ? diasComSaldoNegativo(statementData) : null;
+
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
       <Sidebar activeItem="Clientes" onNavigate={onNavigate} onLogout={logout} />
@@ -292,7 +295,7 @@ export default function ScreenCliente({
             <ContextoCliente cliente={clienteFormatado} />
             <ResumoVisual cliente={clienteFormatado} renda={renda} decisao={decisao} onDefinirMetricas={() => setMetricasOpen(true)} />
             <Evidencias cliente={clienteFormatado} renda={renda} mesesRenda={mesesRenda} onVerComposicao={onVerComposicao} />
-            <DividasContratos loans={loanData} loading={loanLoading} debitoRenda={renda.debito} />
+            <DividasContratos loans={loanData} loading={loanLoading} debitoRenda={renda.debito} diasSaldoNegativo={diasSaldoNegativo} />
             <ExplicacaoOperador cliente={clienteFormatado} renda={renda} decisao={decisao} />
             <DecisaoSugerida
               cliente={clienteFormatado}
@@ -634,13 +637,16 @@ function Evidencias({ cliente, renda, mesesRenda, onVerComposicao }) {
 }
 
 function IncomeChart({ data, showSaldo = false }) {
-  // Casas decimais do gráfico: 1 casa por padrão; 2 casas apenas para valores acima de 1 milhão.
-  const chartFractionDigits = (abs) => (abs > 1000000 ? 2 : 1);
+  // Casas decimais do gráfico: 0 casas abaixo de mil; 1 casa nos milhares; 2 casas acima de 1 milhão. Sufixo " k" acima de mil.
+  const chartFractionDigits = (abs) => {
+    if (abs < 1000) return 0;
+    return abs > 1000000 ? 2 : 1;
+  };
   const fmtChartValue = (v) => {
     const abs = Math.abs(v);
     const digits = chartFractionDigits(abs);
     const txt = abs >= 1000
-      ? `R$ ${(abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: digits })} mil`
+      ? `R$ ${(abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: digits })} k`
       : `R$ ${abs.toLocaleString('pt-BR', { maximumFractionDigits: digits })}`;
     return v < 0 ? `-${txt}` : txt;
   };
@@ -648,7 +654,7 @@ function IncomeChart({ data, showSaldo = false }) {
     const abs = Math.abs(v);
     const digits = chartFractionDigits(abs);
     const txt = abs >= 1000
-      ? (abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: digits })
+      ? `${(abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: digits })} k`
       : abs.toLocaleString('pt-BR', { maximumFractionDigits: digits });
     return v < 0 ? `-${txt}` : txt;
   };
@@ -756,7 +762,7 @@ function fmtLocalDate(value) {
   return `${d}/${m}/${String(y).slice(-2)}`;
 }
 
-function DividasContratos({ loans, loading, debitoRenda }) {
+function DividasContratos({ loans, loading, debitoRenda, diasSaldoNegativo }) {
   const dados = loans?.data ?? loans ?? null;
   const contratos = dados?.activeContractsCount ?? 0;
   const porProduto = Array.isArray(dados?.byProductType) ? dados.byProductType : [];
@@ -781,7 +787,7 @@ function DividasContratos({ loans, loading, debitoRenda }) {
           </div>
         ) : (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 16 }}>
               <EvidKpi label="Contratos ativos" value={String(contratos)} sub="Empréstimos e financiamentos" mono
                 info="Quantidade de contratos ativos (sem data de liquidação) identificados via Open Finance." />
               <EvidKpi label="Saldo devedor" value={saldoTotalBrl > 0 ? fmtBRL(saldoTotalBrl) : '—'} sub="Total em BRL" tone="warning" mono
@@ -790,6 +796,11 @@ function DividasContratos({ loans, loading, debitoRenda }) {
                 info="Próxima parcela com vencimento futuro entre os contratos ativos." />
               <EvidKpi label="Débito/Renda" value={debitoRenda != null ? `${debitoRenda.toFixed(1)}×` : '—'} sub="Saldo devedor ÷ renda verificada" mono
                 info="Saldo devedor total dividido pela mediana da renda verificada dos últimos 6 meses (cálculo do backend)." />
+              <EvidKpi label="Dias com saldo negativo"
+                value={diasSaldoNegativo != null ? String(diasSaldoNegativo) : '—'}
+                sub="Na janela analisada"
+                tone={diasSaldoNegativo ? 'danger' : diasSaldoNegativo === 0 ? 'success' : undefined} mono
+                info="Quantidade de dias, na janela do extrato, em que o saldo consolidado das contas ficou negativo. Reconstruído a partir dos lançamentos do Open Finance; sem o saldo atual da conta, representa o fluxo acumulado." />
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
