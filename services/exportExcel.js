@@ -7,7 +7,7 @@
 // (mycon-poc-excel-consolidado-V1-visual-padronizado.xlsx).
 
 import { maskCpf as maskCpfShared, mesLabel, periodo, slug } from '../lib/format';
-import { PRODUCT_LABELS, isMesCorrente, receiptMethod } from './domain';
+import { PRODUCT_LABELS, computeRendaStats, isMesCorrente, receiptMethod } from './domain';
 import { buildExtratoLines, groupStatementByInstitution } from './extratoFormat.js';
 
 function periodoIncomeLabel(income) {
@@ -420,12 +420,10 @@ function appendResumoV0(ws, startRow, { client, caseItem, insights, income, stat
   const fluxoMedio = mesesFluxo ? (entradas12m - saidas12m) / mesesFluxo : null;
   const mesesFluxoNeg = [...flowByMonth.values()].filter((v) => v.inf - v.out < 0).length;
 
-  let cv = null;
-  if (receitasPos.length >= 3) {
-    const media = avg(receitasPos);
-    const variancia = avg(receitasPos.map((v) => (v - media) ** 2));
-    cv = media > 0 ? Math.sqrt(variancia) / media : null;
-  }
+  // Volatilidade = coeficiente de variação da renda verificada mensal
+  // (computeRendaStats): janela analisada inteira, meses sem renda contam como
+  // zero. Mesma definição exibida na tela de análise e no drawer do caso.
+  const { volatilidade: cv } = computeRendaStats(income);
 
   const folga = parcelaPendente ? null : renda - gasto - parcela;
   const comprometimento = renda > 0 ? gasto / renda : null;
@@ -470,8 +468,8 @@ function appendResumoV0(ws, startRow, { client, caseItem, insights, income, stat
     ['ESTABILIDADE', [
       ['Volatilidade da renda (CV)', cv == null ? '—' : pctStr(cv),
         cv == null
-          ? 'Meses insuficientes para calcular volatilidade com segurança.'
-          : 'Coeficiente de variação da receita mensal (desvio-padrão ÷ média) nos meses com receita.'],
+          ? 'Sem renda verificada na janela (ou meses insuficientes) para calcular volatilidade.'
+          : 'Coeficiente de variação da renda verificada mensal (desvio-padrão ÷ média) na janela analisada; meses sem renda contam como zero. Mesma base da tela de análise.'],
       ['Meses com fluxo negativo', mesesFluxo ? String(mesesFluxoNeg) : 'Indisponível',
         'Conta meses em que entradas menos saídas ficou abaixo de zero.'],
       ['Meses com renda válida', incomeMonths.length ? String(mesesRendaValida) : 'Indisponível',
