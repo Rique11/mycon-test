@@ -641,6 +641,13 @@ function IncomeChart({ data, showSaldo = false }) {
       : fmtBRL(abs);
     return v < 0 ? `-${txt}` : txt;
   };
+  const fmtChartNum = (v) => {
+    const abs = Math.abs(v);
+    const txt = abs >= 1000
+      ? (abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
+      : abs.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    return v < 0 ? `-${txt}` : txt;
+  };
   const W = 780, H = 180;
   const pad = { top: 24, right: 16, bottom: 34, left: 52 };
   const cW = W - pad.left - pad.right;
@@ -691,22 +698,26 @@ function IncomeChart({ data, showSaldo = false }) {
       {data.map((d, i) => {
         const groupW = showSaldo ? barW * 2 + 2 : barW;
         const x = pad.left + slotW * i + (slotW - groupW) / 2;
-        const label = d.v > 0 ? fmtChartValue(d.v) : '';
+        const label = d.v > 0 ? fmtChartNum(d.v) : '';
         return (
           <g key={`${d.m}-${i}`}>
             {bar(x, d.v, TOKENS.brandLight, 1, 'renda')}
             <text x={x + barW / 2} y={yFor(Math.max(d.v, 0)) - 5} textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
               {label}
             </text>
-            {showSaldo && d.s != null && bar(x + barW + 2, d.s, TOKENS.primary, 0.45, 'saldo')}
+            {showSaldo && d.s != null && (
+              <>
+                {bar(x + barW + 2, d.s, TOKENS.primary, 0.45, 'saldo')}
+                <text x={x + barW + 2 + barW / 2}
+                  y={d.s >= 0 ? yFor(d.s) - 5 : yFor(d.s) + 10}
+                  textAnchor="middle" fontSize={8} fontWeight={600} fill={TOKENS.primary}>
+                  {fmtChartNum(d.s)}
+                </text>
+              </>
+            )}
             <text x={pad.left + slotW * i + slotW / 2} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill={TOKENS.textMuted}>
               {d.m}
             </text>
-            {showSaldo && d.s != null && (
-              <text x={pad.left + slotW * i + slotW / 2} y={H - pad.bottom + 25} textAnchor="middle" fontSize={8} fontWeight={600} fill={TOKENS.primary}>
-                {fmtChartValue(d.s)}
-              </text>
-            )}
           </g>
         );
       })}

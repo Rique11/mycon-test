@@ -61,7 +61,7 @@ function getPendingCases(cases) {
 }
 
 function getQueueBanksLabel(caseItem, queueRule, bankLabels = getLocalBankLabels(caseItem)) {
-  if (bankLabels.length) return bankLabels.length === 1 ? '1 banco' : `${bankLabels.length} bancos`;
+  if (bankLabels.length) return String(bankLabels.length);
   return queueRule.accepted ? 'Banco nao identificado' : 'Aguardando consentimento';
 }
 
