@@ -634,18 +634,22 @@ function Evidencias({ cliente, renda, mesesRenda, onVerComposicao }) {
 }
 
 function IncomeChart({ data, showSaldo = false }) {
+  // Casas decimais do gráfico: 1 casa por padrão; 2 casas apenas para valores acima de 1 milhão.
+  const chartFractionDigits = (abs) => (abs > 1000000 ? 2 : 1);
   const fmtChartValue = (v) => {
     const abs = Math.abs(v);
+    const digits = chartFractionDigits(abs);
     const txt = abs >= 1000
-      ? `R$ ${(abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
-      : fmtBRL(abs);
+      ? `R$ ${(abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: digits })} mil`
+      : `R$ ${abs.toLocaleString('pt-BR', { maximumFractionDigits: digits })}`;
     return v < 0 ? `-${txt}` : txt;
   };
   const fmtChartNum = (v) => {
     const abs = Math.abs(v);
+    const digits = chartFractionDigits(abs);
     const txt = abs >= 1000
-      ? (abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
-      : abs.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+      ? (abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: digits })
+      : abs.toLocaleString('pt-BR', { maximumFractionDigits: digits });
     return v < 0 ? `-${txt}` : txt;
   };
   const W = 780, H = 180;

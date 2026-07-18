@@ -403,7 +403,7 @@ function CasesTable({ cases, allCases, activeFilter, onFilterChange, searchTerm,
               {['Caso', 'Contemplado', 'Produto', 'Grupo / Cota', 'Bancos', 'Status', 'Próxima ação', 'Atualização'].map((head) => (
                 <th key={head} style={{
                   padding: '11px 14px',
-                  textAlign: 'left',
+                  textAlign: head === 'Bancos' ? 'center' : 'left',
                   fontSize: 10.5,
                   color: TOKENS.textSubtle,
                   textTransform: 'uppercase',
@@ -491,7 +491,7 @@ function CaseRow({ caseItem, onSelectCase }) {
       <td style={{ padding: '13px 14px', verticalAlign: 'top' }}>
         <div className="num" style={{ fontSize: 12.5, color: TOKENS.text }}>G {caseItem.group} / C {caseItem.quota}</div>
       </td>
-      <td style={{ padding: '13px 14px', verticalAlign: 'top', maxWidth: 150 }}>
+      <td style={{ padding: '13px 14px', verticalAlign: 'top', maxWidth: 150, textAlign: 'center' }}>
         <span title={bankLabels.join(', ')} style={{ fontSize: 12.5, color: bankLabels.length ? TOKENS.text : TOKENS.textSubtle }}>
           {banks}
         </span>
