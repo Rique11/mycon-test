@@ -31,7 +31,10 @@
  * agrupados por instituição de origem (groupStatementByInstitution) e cada
  * instituição gera um extrato próprio, com saldo corrente independente —
  * misturar lançamentos de contas diferentes num único saldo acumulado
- * produziria um número sem significado.
+ * produziria um número sem significado. saldoFimDeMesPorMes consolida, por
+ * mês, o saldo de cada instituição no último lançamento até o fim do mês
+ * (com carry-forward para meses sem movimento) e soma os grupos — usado na
+ * coluna Saldo da composição mensal.
  */
 
 import { isOpaqueToken, normalizeBankLabel, truncateToken } from './institutions.js';
@@ -349,4 +352,39 @@ export function buildExtratoLines(statement) {
   });
 
   return { opening, lines, anchored: closing !== null };
+}
+
+/**
+ * Saldo consolidado ao fim de cada mês (YYYY-MM): para cada instituição, toma
+ * o saldo do extrato (buildExtratoLines) no último lançamento até o fim do mês
+ * e soma os grupos, com carry-forward para meses sem movimento. `mesesIds`
+ * define os meses-alvo; sem ele, usa os meses presentes nas linhas. Meses
+ * anteriores ao primeiro lançamento de todas as instituições ficam de fora.
+ */
+export function saldoFimDeMesPorMes(statement, mesesIds = null) {
+  const rows = Array.isArray(statement?.rows) ? statement.rows : [];
+  if (rows.length === 0) return {};
+  const porGrupo = groupStatementByInstitution(statement).map((group) => (
+    buildExtratoLines(group.statement).lines
+      .map((l) => ({ ym: String(l.date || '').slice(0, 7), ts: dateTimestamp(l.date), saldo: l.saldo }))
+      .filter((l) => Number.isFinite(l.ts) && l.ym.length === 7)
+      .sort((a, b) => a.ts - b.ts)
+  ));
+  const alvo = Array.isArray(mesesIds) && mesesIds.length > 0
+    ? [...mesesIds].sort()
+    : [...new Set(porGrupo.flat().map((l) => l.ym))].sort();
+  const result = {};
+  alvo.forEach((ym) => {
+    let total = null;
+    porGrupo.forEach((linhas) => {
+      let ultimo = null;
+      for (const l of linhas) {
+        if (l.ym <= ym) ultimo = l.saldo;
+        else break;
+      }
+      if (ultimo != null) total = (total ?? 0) + ultimo;
+    });
+    if (total != null) result[ym] = round2(total);
+  });
+  return result;
 }

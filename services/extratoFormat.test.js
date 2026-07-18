@@ -11,6 +11,7 @@ import {
   extratoSignedValue,
   groupStatementByInstitution,
   historicoLabel,
+  saldoFimDeMesPorMes,
 } from './extratoFormat.js';
 
 function lineFor(row) {
@@ -300,5 +301,27 @@ describe('groupStatementByInstitution', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].label).toBe('Nubank');
     expect(groups[0].statement.rows).toHaveLength(2);
+  });
+});
+
+describe('saldoFimDeMesPorMes', () => {
+  it('soma o saldo de fim de mês por instituição com carry-forward', () => {
+    const statement = {
+      rows: [
+        { date: '2026-01-10', type: 'PIX', inflow: 100, institution: 'Banco A' },
+        { date: '2026-01-20', type: 'PIX', outflow: 30, institution: 'Banco A' },
+        { date: '2026-01-15', type: 'PIX', inflow: 50, institution: 'Banco B' },
+        { date: '2026-03-05', type: 'PIX', inflow: 10, institution: 'Banco B' },
+      ],
+    };
+    const saldo = saldoFimDeMesPorMes(statement, ['2026-01', '2026-02', '2026-03']);
+    expect(saldo['2026-01']).toBe(120);
+    expect(saldo['2026-02']).toBe(120);
+    expect(saldo['2026-03']).toBe(130);
+  });
+
+  it('retorna vazio sem extrato', () => {
+    expect(saldoFimDeMesPorMes(null, ['2026-01'])).toEqual({});
+    expect(saldoFimDeMesPorMes({ rows: [] }, ['2026-01'])).toEqual({});
   });
 });

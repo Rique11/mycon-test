@@ -14,11 +14,13 @@ import Sidebar from './components/Sidebar.jsx';
 import AsyncScreen from './components/AsyncScreen.jsx';
 import InfoTip from './components/InfoTip.jsx';
 import { useIncomeComposition } from './hooks/useIncomeComposition';
+import { useStatement } from './hooks/useStatement';
 import { useClientData } from './hooks/useClientData';
 import { useAuth } from './hooks/useAuth';
 import { clientsApi } from './services/api';
 import { exportConsolidado } from './services/exportExcel.js';
 import { exportExtratoPdf } from './services/exportPdf.js';
+import { saldoFimDeMesPorMes } from './services/extratoFormat.js';
 import { fmtBRL as fmt } from './lib/format';
 import { confTone, mapMonth, groupDetail, computeRecurringIncome, receitaTrimestral, recurringDetailByMonth, statementWindow } from './services/domain';
 
@@ -27,6 +29,7 @@ import { confTone, mapMonth, groupDetail, computeRecurringIncome, receitaTrimest
 export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
   const { logout } = useAuth();
   const { data, loading, error, retry } = useIncomeComposition(clientId, statementWindow());
+  const { data: statementData } = useStatement(clientId, statementWindow());
   const { data: clientData, loading: clientLoading } = useClientData(clientId);
   const [exportError, setExportError] = React.useState(null);
 
@@ -56,6 +59,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
   const meses = (data?.months || []).map((mo) => mapMonth(mo, detailByMonth[String(mo.yearMonth)] || []));
   const summary = data?.summary || { validatedIncomeAvg: 0, monthsAnalyzed: meses.length, recurringMonths: 0, confidence: 'Baixa' };
   const recurringByMonth = recurringDetailByMonth(data?.detail || [], meses);
+  const saldoByMonth = saldoFimDeMesPorMes(statementData, meses.map((m) => m.id));
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
@@ -118,7 +122,7 @@ export default function ScreenComposicao({ clientId, onVoltar, onNavigate }) {
               <ResumoComposicao meses={meses} summary={summary} detail={data?.detail || []} insights={clientData?.insights} />
             </SectionBand>
             <SectionBand n={2}>
-              <CompMensal meses={meses} recurringByMonth={recurringByMonth} />
+              <CompMensal meses={meses} recurringByMonth={recurringByMonth} saldoByMonth={saldoByMonth} />
             </SectionBand>
             <SectionBand n={3}>
               <DetalhamentoMeses meses={meses} detailByMonth={detailByMonth} recurringByMonth={recurringByMonth} />
@@ -277,7 +281,7 @@ function ResumoComposicao({ meses, summary, detail, insights }) {
 }
 
 // ───────── 2. Composição mensal da renda (tabela ampla) ─────────
-function CompMensal({ meses, recurringByMonth }) {
+function CompMensal({ meses, recurringByMonth, saldoByMonth }) {
   const [open, setOpen] = React.useState(true);
   const cols = [
     { id: 'mes', label: 'Mês', align: 'left' },
@@ -286,7 +290,7 @@ function CompMensal({ meses, recurringByMonth }) {
     { id: 'pixTotal', label: 'PIX recebido', align: 'right' },
     { id: 'recorrente', label: 'Renda Recorrente', align: 'right' },
     { id: 'entryCount', label: 'Número de entradas', align: 'center' },
-    { id: 'avgEntry', label: 'Valor médio de entrada', align: 'center' },
+    { id: 'saldoMes', label: 'Saldo (fim do mês)', align: 'center' },
     { id: 'maxEntry', label: 'Maior entrada', align: 'center' },
     { id: 'ver', label: 'Detalhes', align: 'center' },
   ];
@@ -301,7 +305,7 @@ function CompMensal({ meses, recurringByMonth }) {
   const pixGeral = meses.reduce((a, m) => a + m.pixTotal, 0);
   const recorrenteGeral = meses.reduce((a, m) => a + recorrenteByMonth[m.id], 0);
   const entriesGeral = meses.reduce((a, m) => a + m.entryCount, 0);
-  const avgGeral = entriesGeral > 0 ? totalGeral / entriesGeral : 0;
+  const saldoFinal = meses.map((m) => saldoByMonth?.[m.id]).filter((v) => v != null).pop() ?? null;
   const maxGeral = meses.reduce((a, m) => Math.max(a, m.maxEntry), 0);
   return (
     <div>
@@ -346,7 +350,7 @@ function CompMensal({ meses, recurringByMonth }) {
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: m.pixTotal ? TOKENS.primary : TOKENS.textSubtle }}>{fmt(m.pixTotal)}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'right', color: recorrenteByMonth[m.id] ? TOKENS.success : TOKENS.textSubtle }}>{fmt(recorrenteByMonth[m.id])}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'center', color: TOKENS.textMuted }}>{m.entryCount}</td>
-                    <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{fmt(m.avgEntry)}</td>
+                    <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.text, background: TOKENS.primarySoft + '55' }}>{saldoByMonth?.[m.id] != null ? fmt(saldoByMonth[m.id]) : '—'}</td>
                     <td className="num" style={{ padding: '12px 14px', textAlign: 'center', color: TOKENS.text }}>{fmt(m.maxEntry)}</td>
                     <td style={{ padding: '12px 14px', textAlign: 'center' }}>
                       <a href={`#${m.id}`} className="lz-link" style={{ fontSize: 12, color: TOKENS.primary, textDecoration: 'none', fontWeight: 500, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
@@ -363,7 +367,7 @@ function CompMensal({ meses, recurringByMonth }) {
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.text }}>{fmt(pixGeral)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'right', fontWeight: 700, color: TOKENS.success }}>{fmt(recorrenteGeral)}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.text }}>{entriesGeral}</td>
-                  <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{fmt(avgGeral)}</td>
+                  <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.primaryFg, background: TOKENS.primarySoft }}>{saldoFinal != null ? fmt(saldoFinal) : '—'}</td>
                   <td className="num" style={{ padding: '12px 14px', textAlign: 'center', fontWeight: 700, color: TOKENS.text }}>{fmt(maxGeral)}</td>
                   <td style={{ padding: '12px 14px' }} />
                 </tr>

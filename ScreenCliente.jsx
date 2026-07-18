@@ -19,12 +19,14 @@ import InfoTip from './components/InfoTip.jsx';
 import EvidKpi from './components/EvidKpi.jsx';
 import { useClientData } from './hooks/useClientData';
 import { useIncomeComposition } from './hooks/useIncomeComposition';
+import { useStatement } from './hooks/useStatement';
 import { useLoanInsights } from './hooks/useLoanInsights';
 import { useAuth } from './hooks/useAuth';
 import { mapMonth, computeRendaStats, computeTendenciaRenda, classifyPerfilRenda, evaluateDecision, sanitizeDecisionCriteria, DEFAULT_DECISION_CRITERIA, PRODUCT_LABELS, statementWindow } from './services/domain';
 import { clientsApi } from './services/api';
 import { exportConsolidado } from './services/exportExcel.js';
 import { exportExtratoPdf } from './services/exportPdf.js';
+import { saldoFimDeMesPorMes } from './services/extratoFormat.js';
 import { fmtBRL, fmtDate, maskCpf } from './lib/format';
 
 const CRITERIA_STORAGE_KEY = 'mycon_decision_criteria_v1';
@@ -104,6 +106,7 @@ export default function ScreenCliente({
   const { logout } = useAuth();
   const { data, loading, error, retry } = useClientData(clientId);
   const { data: incomeData, loading: incomeLoading, retry: retryIncome } = useIncomeComposition(clientId, statementWindow());
+  const { data: statementData } = useStatement(clientId, statementWindow());
   const { data: loanData, loading: loanLoading } = useLoanInsights(clientId);
   const [exportError, setExportError] = React.useState(null);
   const [criteria, setCriteria] = React.useState(loadCriteria);
@@ -231,7 +234,12 @@ export default function ScreenCliente({
     email: client.email || '—',
   };
 
-  const mesesRenda = mesesIncome.slice(-12).map((m) => ({ m: m.parcial ? `${m.label.toLowerCase()} · parcial` : m.label.toLowerCase(), v: m.val }));
+  const saldoByMonth = saldoFimDeMesPorMes(statementData, mesesIncome.map((m) => m.id));
+  const mesesRenda = mesesIncome.slice(-12).map((m) => ({
+    m: m.parcial ? `${m.label.toLowerCase()} · parcial` : m.label.toLowerCase(),
+    v: m.val,
+    s: saldoByMonth?.[m.id] ?? null,
+  }));
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: TOKENS.bg }}>
@@ -545,6 +553,7 @@ function ResumoVisual({ cliente, renda, decisao, onDefinirMetricas }) {
 
 // ───────── 3. Evidências ─────────
 function Evidencias({ cliente, renda, mesesRenda, onVerComposicao }) {
+  const [showSaldo, setShowSaldo] = React.useState(false);
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -592,37 +601,53 @@ function Evidencias({ cliente, renda, mesesRenda, onVerComposicao }) {
                 Evolução da renda verificada
               </div>
               <div style={{ fontSize: 11.5, color: TOKENS.textMuted }}>
-                Renda verificada por mês (pagadores recorrentes) · últimos 12 meses
+                {`Renda verificada por mês (pagadores recorrentes) · últimos 12 meses${showSaldo ? ' · barra clara = saldo ao fim do mês' : ''}`}
               </div>
             </div>
-            {onVerComposicao && (
-              <button onClick={onVerComposicao} className="lz-btn-primary" style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '7px 12px', fontSize: 12, fontWeight: 500,
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button onClick={() => setShowSaldo((v) => !v)} aria-pressed={showSaldo} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                padding: '7px 12px', fontSize: 12, fontWeight: 500, borderRadius: 8,
+                border: `1px solid ${showSaldo ? TOKENS.primary : TOKENS.border}`,
+                background: showSaldo ? TOKENS.primarySoft : '#FFFFFF',
+                color: showSaldo ? TOKENS.primaryFg : TOKENS.textMuted,
               }}>
-                <Icon d={I.link} size={13} stroke="#FFFFFF" strokeWidth={1.8} />
-                Ver composição detalhada
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: TOKENS.primary, opacity: 0.45 }} />
+                Renda + Saldo
               </button>
-            )}
+              {onVerComposicao && (
+                <button onClick={onVerComposicao} className="lz-btn-primary" style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '7px 12px', fontSize: 12, fontWeight: 500,
+                }}>
+                  <Icon d={I.link} size={13} stroke="#FFFFFF" strokeWidth={1.8} />
+                  Ver composição detalhada
+                </button>
+              )}
+            </div>
           </div>
-          <IncomeChart data={mesesRenda.length > 0 ? mesesRenda : [{ m: 'Sem dados', v: 0 }]} />
+          <IncomeChart data={mesesRenda.length > 0 ? mesesRenda : [{ m: 'Sem dados', v: 0 }]} showSaldo={showSaldo} />
         </div>
       </Card>
     </div>
   );
 }
 
-function IncomeChart({ data }) {
-  const fmtChartValue = (v) => (
-    v >= 1000
-      ? `R$ ${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
-      : fmtBRL(v)
-  );
+function IncomeChart({ data, showSaldo = false }) {
+  const fmtChartValue = (v) => {
+    const abs = Math.abs(v);
+    const txt = abs >= 1000
+      ? `R$ ${(abs / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
+      : fmtBRL(abs);
+    return v < 0 ? `-${txt}` : txt;
+  };
   const W = 780, H = 180;
   const pad = { top: 24, right: 16, bottom: 34, left: 52 };
   const cW = W - pad.left - pad.right;
   const cH = H - pad.top - pad.bottom;
-  const rawMax = Math.max(...data.map((d) => d.v), 0);
+  const saldos = showSaldo ? data.map((d) => (d.s == null ? 0 : d.s)) : [];
+  const rawMax = Math.max(...data.map((d) => d.v), ...saldos, 0);
+  const rawMin = Math.min(...saldos, 0);
   const niceCeil = (x) => {
     if (x <= 0) return 3000;
     const pow = Math.pow(10, Math.floor(Math.log10(x)));
@@ -631,14 +656,26 @@ function IncomeChart({ data }) {
     return mult * pow;
   };
   const maxV = niceCeil(rawMax);
-  const barW = (cW / data.length) * 0.5;
-  const yLines = [0, maxV / 4, maxV / 2, (3 * maxV) / 4, maxV];
+  const minV = rawMin < 0 ? -niceCeil(-rawMin) : 0;
+  const span = maxV - minV;
+  const yFor = (v) => pad.top + cH - ((v - minV) / span) * cH;
+  const zeroY = yFor(0);
+  const slotW = cW / data.length;
+  const barW = (slotW * 0.5) / (showSaldo ? 2 : 1);
+  const yLines = [...new Set([minV, minV / 2, 0, maxV / 4, maxV / 2, (3 * maxV) / 4, maxV])]
+    .filter((v) => v >= minV && v <= maxV)
+    .sort((a, b) => a - b);
+
+  const bar = (x, v, fill, opacity, key) => (
+    <rect key={key} x={x} y={v >= 0 ? yFor(v) : zeroY} width={barW}
+      height={Math.abs(yFor(v) - zeroY)} rx={3} fill={fill} fillOpacity={opacity} />
+  );
 
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible' }}>
       {/* Y grid lines + labels */}
       {yLines.map((v) => {
-        const y = pad.top + cH - (v / maxV) * cH;
+        const y = yFor(v);
         return (
           <g key={v}>
             <line x1={pad.left} y1={y} x2={W - pad.right} y2={y}
@@ -650,21 +687,28 @@ function IncomeChart({ data }) {
         );
       })}
 
-      {/* Bars */}
+      {/* Bars: renda (tom escuro) e, com o toggle, saldo ao fim do mês (tom claro) */}
       {data.map((d, i) => {
-        const barH = (d.v / maxV) * cH;
-        const slotW = cW / data.length;
-        const x = pad.left + slotW * i + (slotW - barW) / 2;
-        const y = pad.top + cH - barH;
+        const groupW = showSaldo ? barW * 2 + 2 : barW;
+        const x = pad.left + slotW * i + (slotW - groupW) / 2;
         const label = d.v > 0 ? fmtChartValue(d.v) : '';
         return (
           <g key={`${d.m}-${i}`}>
-            <rect x={x} y={y} width={barW} height={barH} rx={3}
-              fill={TOKENS.brandLight} />
-            <text x={x + barW / 2} y={y - 5} textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
+            {bar(x, d.v, TOKENS.brandLight, 1, 'renda')}
+            <text x={x + barW / 2} y={yFor(Math.max(d.v, 0)) - 5} textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
               {label}
             </text>
-            <text x={x + barW / 2} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill={TOKENS.textMuted}>
+            {showSaldo && d.s != null && (
+              <>
+                {bar(x + barW + 2, d.s, TOKENS.primary, 0.45, 'saldo')}
+                <text x={x + barW + 2 + barW / 2}
+                  y={d.s >= 0 ? yFor(d.s) - 5 : yFor(d.s) + 10}
+                  textAnchor="middle" fontSize={8} fill={TOKENS.textMuted}>
+                  {d.s !== 0 ? fmtChartValue(d.s) : ''}
+                </text>
+              </>
+            )}
+            <text x={pad.left + slotW * i + slotW / 2} y={H - pad.bottom + 13} textAnchor="middle" fontSize={8.5} fill={TOKENS.textMuted}>
               {d.m}
             </text>
           </g>
