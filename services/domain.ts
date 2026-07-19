@@ -349,6 +349,40 @@ export interface RendaStats {
   volatilidade: number | null;
 }
 
+export type ClientRecencyOrder = 'recentes' | 'antigos';
+
+/**
+ * Ordena a lista de clientes por data de cadastro (`createdAt`): 'recentes'
+ * exibe do mais novo para o mais antigo, 'antigos' inverte. Clientes sem
+ * `createdAt` parseável ficam ao final, preservando a ordem da API entre si.
+ * Quando nenhum cliente traz `createdAt`, a ordem da API é tratada como proxy
+ * cronológico (listagem por inserção): 'antigos' mantém a ordem recebida e
+ * 'recentes' a inverte. O parse usa `Date.parse` apenas para comparação
+ * relativa — nenhum valor é reformatado para exibição.
+ */
+export function sortClientsByRecency<T extends Record<string, unknown>>(
+  clients: T[] | null | undefined,
+  order: ClientRecencyOrder,
+): T[] {
+  const entries = (clients || []).map((client, idx) => {
+    const parsed = Date.parse(String(client?.createdAt ?? ''));
+    return { client, idx, ts: Number.isFinite(parsed) ? parsed : null };
+  });
+  const dated = entries.filter((e) => e.ts != null);
+  const undated = entries.filter((e) => e.ts == null);
+
+  if (dated.length === 0) {
+    const proxy = order === 'antigos' ? entries : [...entries].reverse();
+    return proxy.map((e) => e.client);
+  }
+
+  dated.sort((a, b) => {
+    const delta = order === 'antigos' ? (a.ts ?? 0) - (b.ts ?? 0) : (b.ts ?? 0) - (a.ts ?? 0);
+    return delta || a.idx - b.idx;
+  });
+  return [...dated, ...undated].map((e) => e.client);
+}
+
 /** Converte um yearMonth (YYYY-MM) em índice absoluto de mês; null se inválido. */
 function monthIndex(ym: unknown): number | null {
   const match = /^(\d{4})-(\d{2})$/.exec(String(ym ?? ''));

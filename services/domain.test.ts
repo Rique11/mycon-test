@@ -27,6 +27,7 @@ import {
   receitaTrimestral,
   recurringDetailByMonth,
   sanitizeDecisionCriteria,
+  sortClientsByRecency,
   sourceKey,
 } from './domain';
 
@@ -465,6 +466,44 @@ describe('computeRendaStats', () => {
     const r = computeRendaStats(income);
     expect(r.media12m).toBe(2000);
     expect(r.volatilidade).toBeCloseTo(1, 5);
+  });
+});
+
+describe('sortClientsByRecency', () => {
+  const cliente = (id: string, createdAt?: string) => ({ id, ...(createdAt ? { createdAt } : {}) });
+
+  it('ordena por createdAt nas duas direções', () => {
+    const clients = [
+      cliente('a', '2026-01-10T12:00:00Z'),
+      cliente('b', '2026-03-05T12:00:00Z'),
+      cliente('c', '2025-11-20T12:00:00Z'),
+    ];
+    expect(sortClientsByRecency(clients, 'recentes').map((c) => c.id)).toEqual(['b', 'a', 'c']);
+    expect(sortClientsByRecency(clients, 'antigos').map((c) => c.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('mantém clientes sem createdAt ao final, na ordem da API', () => {
+    const clients = [
+      cliente('sem1'),
+      cliente('novo', '2026-02-01T00:00:00Z'),
+      cliente('sem2', 'data-invalida'),
+      cliente('velho', '2025-01-01T00:00:00Z'),
+    ];
+    expect(sortClientsByRecency(clients, 'recentes').map((c) => c.id))
+      .toEqual(['novo', 'velho', 'sem1', 'sem2']);
+    expect(sortClientsByRecency(clients, 'antigos').map((c) => c.id))
+      .toEqual(['velho', 'novo', 'sem1', 'sem2']);
+  });
+
+  it('sem nenhum createdAt usa a ordem da API como proxy cronológico', () => {
+    const clients = [cliente('a'), cliente('b'), cliente('c')];
+    expect(sortClientsByRecency(clients, 'antigos').map((c) => c.id)).toEqual(['a', 'b', 'c']);
+    expect(sortClientsByRecency(clients, 'recentes').map((c) => c.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('tolera lista nula ou vazia', () => {
+    expect(sortClientsByRecency(null, 'recentes')).toEqual([]);
+    expect(sortClientsByRecency([], 'antigos')).toEqual([]);
   });
 });
 

@@ -1,5 +1,6 @@
-// Tela de lista de clientes: busca e grade de cartões de clientes a partir do hook
-// useClientList. Reestilizada na identidade Lizard; comportamento preservado.
+// Tela de lista de clientes: busca, ordenação por data de cadastro (mais
+// recentes ou mais antigos primeiro, via sortClientsByRecency) e grade de
+// cartões de clientes a partir do hook useClientList.
 
 import React from 'react';
 import { TOKENS, I } from '../tokens.js';
@@ -9,19 +10,25 @@ import Card from '../components/Card.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import AsyncScreen from '../components/AsyncScreen.jsx';
 import { useClientList } from '../hooks/useClientList';
+import { sortClientsByRecency } from '../services/domain';
 
 export default function ClientListScreen({ onSelectClient, onLogout, activeItem = 'Clientes', onNavigate }) {
   const { clients, loading, error, retry } = useClientList();
   const [searchTerm, setSearchTerm] = React.useState('');
+  // Ordem de exibição: 'antigos' mantém a ordem cronológica de cadastro
+  // (padrão); 'recentes' inverte. O botão anuncia a ordem que será aplicada
+  // ao clicar, no mesmo padrão do histórico de meses da composição.
+  const [order, setOrder] = React.useState('antigos');
 
   const filtered = React.useMemo(() => {
     const term = searchTerm.toLowerCase();
-    return clients.filter(c =>
+    const matching = clients.filter(c =>
       (c.name ?? '').toLowerCase().includes(term) ||
       (c.email ?? '').toLowerCase().includes(term) ||
       (c.cpf ?? '').includes(searchTerm)
     );
-  }, [clients, searchTerm]);
+    return sortClientsByRecency(matching, order);
+  }, [clients, searchTerm, order]);
 
   if (loading || error) {
     return (
@@ -60,15 +67,15 @@ export default function ClientListScreen({ onSelectClient, onLogout, activeItem 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '32px' }}>
           <div style={{ maxWidth: 1200, width: '100%', margin: '0 auto' }}>
-            {/* Search */}
-            <div style={{ marginBottom: 24 }}>
+            {/* Search + ordenação */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
               <input
                 type="text"
                 placeholder="Buscar por nome, email ou CPF..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
-                  width: '100%',
+                  flex: 1,
                   maxWidth: 400,
                   padding: '10px 12px',
                   fontSize: 14,
@@ -79,6 +86,20 @@ export default function ClientListScreen({ onSelectClient, onLogout, activeItem 
                   fontFamily: 'inherit',
                 }}
               />
+              <button
+                className="lz-btn-ghost"
+                onClick={() => setOrder((o) => (o === 'antigos' ? 'recentes' : 'antigos'))}
+                title="Alternar ordem por data de cadastro"
+                style={{ padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <Icon
+                  d={I.history}
+                  size={13}
+                  stroke={TOKENS.textMuted}
+                  strokeWidth={1.8}
+                />
+                {order === 'antigos' ? 'Mais recente primeiro' : 'Mais antigo primeiro'}
+              </button>
             </div>
 
             {/* Clients Grid */}
