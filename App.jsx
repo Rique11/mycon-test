@@ -2,6 +2,8 @@
 // lista de clientes, análise do cliente e composição da renda. Ao abrir a análise
 // a partir da fila da POC, guarda também o caso selecionado para que a tela de
 // análise exiba o contexto de consórcio (grupo, cota, produto, valor da carta).
+// Renderiza ainda o widget global de reports (botão flutuante no canto inferior
+// direito), presente em todas as telas.
 
 import React from 'react';
 import './lizard.css';
@@ -10,6 +12,7 @@ import ScreenComposicao from './ScreenComposicao.jsx';
 import LoginScreen from './screens/LoginScreen.jsx';
 import ClientListScreen from './screens/ClientListScreen.jsx';
 import PocContempladosScreen from './screens/PocContempladosScreen.jsx';
+import ReportWidget from './components/ReportWidget.jsx';
 import { useAuth } from './hooks/useAuth';
 
 export default function App() {
@@ -43,12 +46,11 @@ export default function App() {
     }
   }
 
+  let content;
   if (!isAuthenticated) {
-    return <LoginScreen />;
-  }
-
-  if (selectedClientId) {
-    return tela === 'composicao'
+    content = <LoginScreen />;
+  } else if (selectedClientId) {
+    content = tela === 'composicao'
       ? (
         <ScreenComposicao
           clientId={selectedClientId}
@@ -66,10 +68,8 @@ export default function App() {
           backLabel={section === 'poc' ? 'Voltar para POC' : 'Voltar para clientes'}
         />
       );
-  }
-
-  if (section === 'clientes') {
-    return (
+  } else if (section === 'clientes') {
+    content = (
       <ClientListScreen
         onSelectClient={handleSelectClient}
         onLogout={logout}
@@ -77,13 +77,20 @@ export default function App() {
         onNavigate={handleNavigate}
       />
     );
+  } else {
+    content = (
+      <PocContempladosScreen
+        onLogout={logout}
+        onNavigate={handleNavigate}
+        onSelectClient={handleSelectClient}
+      />
+    );
   }
 
   return (
-    <PocContempladosScreen
-      onLogout={logout}
-      onNavigate={handleNavigate}
-      onSelectClient={handleSelectClient}
-    />
+    <>
+      {content}
+      <ReportWidget />
+    </>
   );
 }
