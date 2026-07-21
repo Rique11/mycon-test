@@ -1,12 +1,11 @@
 // Widget global de reports: botão flutuante no canto inferior direito, presente
 // em todas as telas, que abre um pop-up com select de categoria (relatar bug,
 // nova funcionalidade, agendar reunião com técnicos ou outros), caixa de texto
-// e anexo de até 5 arquivos. Envia o report por e-mail via API REST do EmailJS
-// quando as variáveis VITE_REPORT_EMAILJS_* estão configuradas, com fallback
-// para mailto: (VITE_REPORT_EMAIL_TO); oferece ainda envio alternativo por
-// WhatsApp (wa.me) quando VITE_REPORT_WHATSAPP está definido. No plano gratuito
-// do EmailJS os anexos não são transmitidos — apenas os nomes dos arquivos são
-// incluídos no corpo do report. Renderizado via portal direto no document.body.
+// e anexo de até 5 arquivos. O envio abre o WhatsApp do time técnico (wa.me,
+// número em VITE_REPORT_WHATSAPP) com o report formatado para o usuário
+// confirmar; os arquivos não são transmitidos automaticamente — os nomes são
+// incluídos na mensagem e os anexos podem ser adicionados manualmente na
+// conversa. Renderizado via portal direto no document.body.
 
 import React from 'react';
 import { createPortal } from 'react-dom';
@@ -16,8 +15,6 @@ import Button from './Button.jsx';
 
 const MAX_FILES = 5;
 const MAX_FILE_MB = 10;
-const SEND_TIMEOUT_MS = 15000;
-const MAILTO_BODY_LIMIT = 1800;
 
 const CATEGORIES = [
   { value: 'bug', label: 'Relatar bug' },
@@ -32,14 +29,7 @@ const LOCAL_ICONS = {
 };
 
 const ENV = import.meta.env ?? {};
-const EMAILJS = {
-  serviceId: ENV.VITE_REPORT_EMAILJS_SERVICE_ID ?? '',
-  templateId: ENV.VITE_REPORT_EMAILJS_TEMPLATE_ID ?? '',
-  publicKey: ENV.VITE_REPORT_EMAILJS_PUBLIC_KEY ?? '',
-};
-const EMAIL_TO = ENV.VITE_REPORT_EMAIL_TO ?? '';
 const WHATSAPP = String(ENV.VITE_REPORT_WHATSAPP ?? '').replace(/\D/g, '');
-const EMAILJS_CONFIGURED = Boolean(EMAILJS.serviceId && EMAILJS.templateId && EMAILJS.publicKey);
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -61,35 +51,13 @@ function buildSummary(categoryLabel, message, files) {
   ].join('\n');
 }
 
-async function sendViaEmailJs(templateParams) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
-  try {
-    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        service_id: EMAILJS.serviceId,
-        template_id: EMAILJS.templateId,
-        user_id: EMAILJS.publicKey,
-        template_params: templateParams,
-      }),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`EmailJS respondeu ${res.status}`);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export default function ReportWidget() {
   const [open, setOpen] = React.useState(false);
   const [category, setCategory] = React.useState('');
   const [message, setMessage] = React.useState('');
   const [files, setFiles] = React.useState([]);
-  const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState('');
-  const [notice, setNotice] = React.useState(null);
+  const [notice, setNotice] = React.useState('');
   const fileInputRef = React.useRef(null);
   const triggerRef = React.useRef(null);
   const firstFieldRef = React.useRef(null);
@@ -115,7 +83,7 @@ export default function ReportWidget() {
 
   function openPopup() {
     setError('');
-    setNotice(null);
+    setNotice('');
     setOpen(true);
   }
 
@@ -150,75 +118,31 @@ export default function ReportWidget() {
     setFiles((current) => current.filter((_, i) => i !== index));
   }
 
-  function validate() {
+  function handleSubmit(e) {
+    e.preventDefault();
     const categoryLabel = CATEGORIES.find((c) => c.value === category)?.label;
     if (!categoryLabel) {
       setError('Selecione o tipo do report.');
-      return null;
+      return;
     }
     if (!message.trim()) {
       setError('Descreva o report antes de enviar.');
-      return null;
+      return;
+    }
+    if (!WHATSAPP) {
+      setError('WhatsApp do time não configurado. Defina VITE_REPORT_WHATSAPP no .env.local.');
+      return;
     }
     setError('');
-    return { categoryLabel, text: message.trim() };
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (sending) return;
-    const data = validate();
-    if (!data) return;
-
-    if (EMAILJS_CONFIGURED) {
-      setSending(true);
-      try {
-        await sendViaEmailJs({
-          report_category: data.categoryLabel,
-          report_message: data.text,
-          report_files: files.length
-            ? files.map((f) => `${f.name} (${formatBytes(f.size)})`).join(', ')
-            : 'Nenhum',
-          report_page: window.location.href,
-          report_date: new Date().toLocaleString('pt-BR'),
-          to_email: EMAIL_TO,
-        });
-        setNotice({ kind: 'success', text: 'Report enviado ao time técnico. Obrigado!' });
-        resetForm();
-      } catch {
-        setError('Não foi possível enviar o report. Verifique a conexão e tente novamente.');
-      } finally {
-        setSending(false);
-      }
-      return;
-    }
-
-    if (EMAIL_TO) {
-      const summary = buildSummary(data.categoryLabel, data.text, files);
-      const subject = `Report — ${data.categoryLabel}`;
-      window.location.href = `mailto:${EMAIL_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(summary.slice(0, MAILTO_BODY_LIMIT))}`;
-      setNotice({ kind: 'info', text: 'Rascunho aberto no seu cliente de e-mail — confirme o envio por lá.' });
-      resetForm();
-      return;
-    }
-
-    setError('Nenhum canal de envio configurado. Defina as variáveis VITE_REPORT_* no .env.local.');
-  }
-
-  function handleWhatsApp() {
-    const data = validate();
-    if (!data) return;
-    const summary = buildSummary(data.categoryLabel, data.text, files);
+    const summary = buildSummary(categoryLabel, message.trim(), files);
     window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(summary)}`, '_blank', 'noopener,noreferrer');
-    setNotice({ kind: 'info', text: 'Mensagem aberta no WhatsApp — confirme o envio por lá.' });
+    setNotice(
+      files.length
+        ? 'Report aberto no WhatsApp — confirme o envio por lá e anexe os arquivos na conversa.'
+        : 'Report aberto no WhatsApp — confirme o envio por lá.',
+    );
     resetForm();
   }
-
-  const channelHint = EMAILJS_CONFIGURED
-    ? 'O report é enviado por e-mail ao time técnico. Anexos: apenas os nomes dos arquivos são incluídos.'
-    : EMAIL_TO
-      ? 'Sem EmailJS configurado: o report abre no seu cliente de e-mail com os nomes dos anexos.'
-      : 'Configure as variáveis VITE_REPORT_* no .env.local para habilitar o envio.';
 
   const widget = (
     <>
@@ -297,13 +221,12 @@ export default function ReportWidget() {
                   marginBottom: 12,
                   fontSize: 13,
                   borderRadius: RADII.control,
-                  background: notice.kind === 'success' ? TOKENS.successSoft : TOKENS.primarySoft,
-                  color: notice.kind === 'success' ? TOKENS.success : TOKENS.primaryFg,
-                  border: `1px solid ${notice.kind === 'success' ? TOKENS.successSoft : TOKENS.primarySoftBorder}`,
+                  background: TOKENS.successSoft,
+                  color: TOKENS.success,
                 }}
               >
-                <Icon d={notice.kind === 'success' ? I.check : I.info} size={15} strokeWidth={2} />
-                {notice.text}
+                <Icon d={I.check} size={15} strokeWidth={2} />
+                {notice}
               </div>
             )}
 
@@ -441,20 +364,15 @@ export default function ReportWidget() {
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Button type="submit" disabled={sending} style={{ flex: 1 }}>
-                  <Icon d={I.send} size={14} />
-                  {sending ? 'Enviando…' : 'Enviar'}
-                </Button>
-                {WHATSAPP && (
-                  <Button variant="secondary" onClick={handleWhatsApp} disabled={sending}>
-                    WhatsApp
-                  </Button>
-                )}
-              </div>
+              <Button type="submit" style={{ width: '100%' }}>
+                <Icon d={I.send} size={14} />
+                Enviar via WhatsApp
+              </Button>
 
               <p style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.45, color: TOKENS.textSubtle }}>
-                {channelHint}
+                O report abre no WhatsApp do time técnico com a mensagem formatada — confirme o envio por lá.
+                Os arquivos não são enviados automaticamente: os nomes vão na mensagem e os anexos podem ser
+                adicionados manualmente na conversa.
               </p>
             </form>
           </div>
