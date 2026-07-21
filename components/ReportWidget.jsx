@@ -1,20 +1,24 @@
 // Widget global de reports: botão flutuante no canto inferior direito, presente
 // em todas as telas, que abre um pop-up com select de categoria (relatar bug,
 // nova funcionalidade, agendar reunião com técnicos ou outros), caixa de texto
-// e anexo de até 5 arquivos. O envio abre o WhatsApp do time técnico (wa.me,
-// número em VITE_REPORT_WHATSAPP) com o report formatado para o usuário
-// confirmar; os arquivos não são transmitidos automaticamente — os nomes são
-// incluídos na mensagem e os anexos podem ser adicionados manualmente na
-// conversa. Renderizado via portal direto no document.body.
+// e anexo de até 5 arquivos. O envio registra o report na planilha Google
+// Sheets do time via Apps Script Web App (URL em VITE_REPORT_SHEETS_URL),
+// preenchendo as colunas Empresa (VITE_REPORT_EMPRESA), Banker (perfil do
+// operador autenticado), Tipo, Relato, Data e Status inicial "Pendente"; os
+// arquivos são enviados em base64 e salvos no Google Drive, com os links
+// gravados na coluna Arquivos. Renderizado via portal no document.body.
 
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { TOKENS, RADII, SHADOWS, I } from '../tokens.js';
 import Icon from './Icon.jsx';
 import Button from './Button.jsx';
+import { useBankerProfile } from '../hooks/useBankerProfile';
 
 const MAX_FILES = 5;
-const MAX_FILE_MB = 10;
+const MAX_FILE_MB = 5;
+const MAX_TOTAL_MB = 20;
+const SEND_TIMEOUT_MS = 30000;
 
 const CATEGORIES = [
   { value: 'bug', label: 'Relatar bug' },
@@ -29,7 +33,8 @@ const LOCAL_ICONS = {
 };
 
 const ENV = import.meta.env ?? {};
-const WHATSAPP = String(ENV.VITE_REPORT_WHATSAPP ?? '').replace(/\D/g, '');
+const SHEETS_URL = ENV.VITE_REPORT_SHEETS_URL ?? '';
+const EMPRESA = ENV.VITE_REPORT_EMPRESA ?? '';
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -37,30 +42,32 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function buildSummary(categoryLabel, message, files) {
-  return [
-    `Report — ${categoryLabel}`,
-    '',
-    message,
-    '',
-    files.length
-      ? `Arquivos (${files.length}): ${files.map((f) => `${f.name} (${formatBytes(f.size)})`).join(', ')}`
-      : 'Sem arquivos anexados.',
-    `Página: ${window.location.href}`,
-    `Data: ${new Date().toLocaleString('pt-BR')}`,
-  ].join('\n');
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? '');
+      resolve(result.slice(result.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function ReportWidget() {
+  const bankerProfile = useBankerProfile();
   const [open, setOpen] = React.useState(false);
   const [category, setCategory] = React.useState('');
   const [message, setMessage] = React.useState('');
   const [files, setFiles] = React.useState([]);
+  const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState('');
   const [notice, setNotice] = React.useState('');
   const fileInputRef = React.useRef(null);
   const triggerRef = React.useRef(null);
   const firstFieldRef = React.useRef(null);
+
+  const bankerName = bankerProfile?.name || bankerProfile?.email || '';
 
   React.useEffect(() => {
     if (!open) return undefined;
@@ -94,6 +101,7 @@ export default function ReportWidget() {
     setFiles((current) => {
       const next = [...current];
       const problems = [];
+      let totalBytes = next.reduce((sum, f) => sum + f.size, 0);
       for (const file of incoming) {
         const duplicate = next.some(
           (f) => f.name === file.name && f.size === file.size && f.lastModified === file.lastModified,
@@ -107,6 +115,11 @@ export default function ReportWidget() {
           problems.push(`Limite de ${MAX_FILES} arquivos atingido.`);
           break;
         }
+        if (totalBytes + file.size > MAX_TOTAL_MB * 1024 * 1024) {
+          problems.push(`Total de anexos excede ${MAX_TOTAL_MB}MB.`);
+          break;
+        }
+        totalBytes += file.size;
         next.push(file);
       }
       if (problems.length) setError(problems.join(' '));
@@ -118,8 +131,9 @@ export default function ReportWidget() {
     setFiles((current) => current.filter((_, i) => i !== index));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
+    if (sending) return;
     const categoryLabel = CATEGORIES.find((c) => c.value === category)?.label;
     if (!categoryLabel) {
       setError('Selecione o tipo do report.');
@@ -129,20 +143,49 @@ export default function ReportWidget() {
       setError('Descreva o report antes de enviar.');
       return;
     }
-    if (!WHATSAPP) {
-      setError('WhatsApp do time não configurado. Defina VITE_REPORT_WHATSAPP no .env.local.');
+    if (!SHEETS_URL) {
+      setError('Planilha não configurada. Defina VITE_REPORT_SHEETS_URL no .env e refaça o build.');
       return;
     }
     setError('');
-    const summary = buildSummary(categoryLabel, message.trim(), files);
-    window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(summary)}`, '_blank', 'noopener,noreferrer');
-    setNotice(
-      files.length
-        ? 'Report aberto no WhatsApp — confirme o envio por lá e anexe os arquivos na conversa.'
-        : 'Report aberto no WhatsApp — confirme o envio por lá.',
-    );
-    resetForm();
+    setSending(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
+    try {
+      const arquivos = await Promise.all(
+        files.map(async (file) => ({
+          name: file.name,
+          type: file.type,
+          base64: await readFileAsBase64(file),
+        })),
+      );
+      const res = await fetch(SHEETS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          empresa: EMPRESA,
+          banker: bankerName,
+          tipo: categoryLabel,
+          relato: message.trim(),
+          pagina: window.location.href,
+          arquivos,
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`Planilha respondeu ${res.status}`);
+      const body = await res.json();
+      if (!body.ok) throw new Error(body.error || 'Falha ao registrar o report.');
+      setNotice('Report registrado na planilha do time com status "Pendente". Obrigado!');
+      resetForm();
+    } catch {
+      setError('Não foi possível registrar o report. Verifique a conexão e tente novamente.');
+    } finally {
+      clearTimeout(timer);
+      setSending(false);
+    }
   }
+
+  const identity = [bankerName, EMPRESA].filter(Boolean).join(' · ');
 
   const widget = (
     <>
@@ -259,7 +302,7 @@ export default function ReportWidget() {
                 htmlFor="report-message"
                 style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: TOKENS.textMuted, marginBottom: 6 }}
               >
-                Descrição
+                Relato
               </label>
               <textarea
                 id="report-message"
@@ -285,7 +328,7 @@ export default function ReportWidget() {
                 variant="outline"
                 size="sm"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={files.length >= MAX_FILES}
+                disabled={sending || files.length >= MAX_FILES}
                 style={{ marginBottom: files.length ? 8 : 12 }}
               >
                 <Icon d={LOCAL_ICONS.clip} size={14} />
@@ -364,15 +407,15 @@ export default function ReportWidget() {
                 </div>
               )}
 
-              <Button type="submit" style={{ width: '100%' }}>
+              <Button type="submit" disabled={sending} style={{ width: '100%' }}>
                 <Icon d={I.send} size={14} />
-                Enviar via WhatsApp
+                {sending ? 'Registrando…' : 'Registrar report'}
               </Button>
 
               <p style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.45, color: TOKENS.textSubtle }}>
-                O report abre no WhatsApp do time técnico com a mensagem formatada — confirme o envio por lá.
-                Os arquivos não são enviados automaticamente: os nomes vão na mensagem e os anexos podem ser
-                adicionados manualmente na conversa.
+                {identity ? `Enviando como ${identity}. ` : ''}
+                O report entra na planilha do time com status "Pendente"; os arquivos anexados são salvos no
+                Google Drive e linkados na planilha.
               </p>
             </form>
           </div>
