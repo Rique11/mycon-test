@@ -4,19 +4,23 @@
  * tipos das respostas consumidas pelos hooks e telas.
  */
 
-const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:8083').replace(/\/+$/, '');
+import {
+  firebaseAuthErrorMessage,
+  getFirebaseIdToken,
+  loginWithFirebase,
+  logoutFromFirebase,
+} from './firebase';
 
-const ACCESS_TOKEN_KEY = 'access_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
-const AUTH_EVENT = 'auth:tokens-updated';
+const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+const REQUESTED_TENANT_ID = (
+  import.meta.env.VITE_TENANT_ID ??
+  import.meta.env.VITE_FIREBASE_TENANT_ID ??
+  ''
+).trim();
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 // ── Tipos de resposta ─────────────────────────────────────────────────────────
-
-export interface TokenPair {
-  accessToken: string;
-  refreshToken: string;
-}
 
 export interface Page<T> {
   content: T[];
@@ -97,49 +101,17 @@ interface RequestOptions extends Omit<RequestInit, 'body' | 'headers'> {
 
 // ── Token storage ─────────────────────────────────────────────────────────────
 
-export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+function clearTokens(): void {
+  void logoutFromFirebase();
 }
-
-export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
-}
-
-export function setTokens(tokens: TokenPair): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
-  window.dispatchEvent(new CustomEvent(AUTH_EVENT));
-}
-
-export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
-  window.dispatchEvent(new CustomEvent(AUTH_EVENT));
-}
-
-export const AUTH_TOKENS_EVENT = AUTH_EVENT;
 
 // ── Refresh orchestration ─────────────────────────────────────────────────────
 
 let refreshPromise: Promise<string | null> | null = null;
 
 async function doRefresh(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
-
   try {
-    const response = await fetch(`${BASE_URL}/api/v1/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!response.ok) {
-      clearTokens();
-      return null;
-    }
-    const data = (await response.json()) as TokenPair;
-    setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
-    return data.accessToken;
+    return await getFirebaseIdToken(true);
   } catch {
     clearTokens();
     return null;
@@ -225,6 +197,9 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
       ...(headers || {}),
     };
     if (authenticated && token) finalHeaders.Authorization = `Bearer ${token}`;
+    if (authenticated && REQUESTED_TENANT_ID) {
+      finalHeaders['X-Tenant-ID'] = REQUESTED_TENANT_ID;
+    }
 
     return fetch(buildUrl(path, query), {
       ...rest,
@@ -236,7 +211,7 @@ async function request<T = unknown>(path: string, options: RequestOptions = {}):
 
   let response: Response;
   try {
-    response = await doFetch(authenticated ? getAccessToken() : null);
+    response = await doFetch(authenticated ? await getFirebaseIdToken() : null);
   } catch (err) {
     throw toNetworkError(err);
   }
@@ -278,10 +253,15 @@ function toNetworkError(err: unknown): ApiError {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  login: (body: { email: string; password: string }) =>
-    request<TokenPair>('/api/v1/auth/login', { method: 'POST', body, authenticated: false }),
+  login: async (body: { email: string; password: string }) => {
+    try {
+      return await loginWithFirebase(body.email, body.password);
+    } catch (error) {
+      throw new ApiError(401, firebaseAuthErrorMessage(error), error);
+    }
+  },
 
-  logout: () => request('/api/v1/auth/logout', { method: 'POST' }),
+  logout: () => logoutFromFirebase(),
 };
 
 // ── Banker ────────────────────────────────────────────────────────────────────

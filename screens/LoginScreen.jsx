@@ -5,7 +5,7 @@
 import React from 'react';
 import './LoginScreen.css';
 import logoLizard from '../assets/logo-app-icon.png';
-import { authApi, setTokens, ApiError } from '../services/api';
+import { authApi, ApiError } from '../services/api';
 
 export default function LoginScreen() {
   const [email, setEmail] = React.useState('');
@@ -25,17 +25,15 @@ export default function LoginScreen() {
     setLoading(true);
 
     try {
-      const response = await authApi.login({ email, password });
-      setTokens({
-        accessToken: response.accessToken,
-        refreshToken: response.refreshToken,
-      });
+      await authApi.login({ email, password });
       window.location.href = '/';
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
+      } else if (err instanceof Error) {
+        setError(err.message);
       } else {
-        setError('Erro ao fazer login');
+        setError('Erro ao fazer login.');
       }
     } finally {
       setLoading(false);

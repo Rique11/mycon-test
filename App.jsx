@@ -16,7 +16,7 @@ import ReportWidget from './components/ReportWidget.jsx';
 import { useAuth } from './hooks/useAuth';
 
 export default function App() {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, isLoading, logout } = useAuth();
   const [section, setSection] = React.useState('poc');
   const [tela, setTela] = React.useState('cliente');
   const [selectedClientId, setSelectedClientId] = React.useState(null);
@@ -47,7 +47,9 @@ export default function App() {
   }
 
   let content;
-  if (!isAuthenticated) {
+  if (isLoading) {
+    content = null;
+  } else if (!isAuthenticated) {
     content = <LoginScreen />;
   } else if (selectedClientId) {
     content = tela === 'composicao'

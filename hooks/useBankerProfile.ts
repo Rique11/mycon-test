@@ -7,7 +7,8 @@
  */
 
 import React from 'react';
-import { bankerApi, getAccessToken, AUTH_TOKENS_EVENT } from '../services/api';
+import { bankerApi } from '../services/api';
+import { AUTH_STATE_EVENT, getCurrentUser } from '../services/firebase';
 
 export interface BankerProfile {
   id?: string;
@@ -20,7 +21,7 @@ let cachedProfile: BankerProfile | null = null;
 let inflight: Promise<BankerProfile | null> | null = null;
 
 function fetchProfile(): Promise<BankerProfile | null> {
-  if (!getAccessToken()) return Promise.resolve(null);
+  if (!getCurrentUser()) return Promise.resolve(null);
   if (!inflight) {
     inflight = (bankerApi.getMe() as Promise<BankerProfile>)
       .then((profile) => {
@@ -52,13 +53,13 @@ export function useBankerProfile(): BankerProfile | null {
     const handleTokensUpdated = () => {
       cachedProfile = null;
       if (!cancelled) setProfile(null);
-      if (getAccessToken()) load();
+      if (getCurrentUser()) load();
     };
 
-    window.addEventListener(AUTH_TOKENS_EVENT, handleTokensUpdated);
+    window.addEventListener(AUTH_STATE_EVENT, handleTokensUpdated);
     return () => {
       cancelled = true;
-      window.removeEventListener(AUTH_TOKENS_EVENT, handleTokensUpdated);
+      window.removeEventListener(AUTH_STATE_EVENT, handleTokensUpdated);
     };
   }, []);
 

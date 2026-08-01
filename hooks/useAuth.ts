@@ -1,42 +1,33 @@
 /**
- * useAuth.ts — Hook de autenticação que detecta e gerencia tokens, sincronizado
- * entre abas via evento storage e dentro da aba via AUTH_TOKENS_EVENT.
+ * Estado de autenticação mantido pelo Firebase. onIdTokenChanged também cobre
+ * restauração da sessão e renovação automática do ID token.
  */
 
 import React from 'react';
-import { getAccessToken, clearTokens, AUTH_TOKENS_EVENT } from '../services/api';
+import { onIdTokenChanged } from 'firebase/auth';
+import { firebaseAuth, logoutFromFirebase } from '../services/firebase';
 
 export function useAuth() {
-  const [isAuthenticated, setIsAuthenticated] = React.useState(() => {
-    return getAccessToken() !== null;
-  });
+  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    const handleTokensUpdated = () => {
-      setIsAuthenticated(getAccessToken() !== null);
-    };
+  React.useEffect(
+    () =>
+      onIdTokenChanged(firebaseAuth, (user) => {
+        setIsAuthenticated(Boolean(user));
+        setIsLoading(false);
+      }),
+    [],
+  );
 
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === null || event.key === 'access_token' || event.key === 'refresh_token') {
-        handleTokensUpdated();
-      }
-    };
-
-    window.addEventListener(AUTH_TOKENS_EVENT, handleTokensUpdated);
-    window.addEventListener('storage', handleStorage);
-    return () => {
-      window.removeEventListener(AUTH_TOKENS_EVENT, handleTokensUpdated);
-      window.removeEventListener('storage', handleStorage);
-    };
-  }, []);
-
-  const logout = React.useCallback(() => {
-    clearTokens();
+  const logout = React.useCallback(async () => {
+    await logoutFromFirebase();
     window.location.href = '/';
   }, []);
 
   return {
     isAuthenticated,
+    isLoading,
     logout,
   };
 }
